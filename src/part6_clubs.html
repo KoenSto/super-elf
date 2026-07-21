@@ -15,6 +15,7 @@ function initClubsTab(){
 }
 
 function addPlayerToClub(club, naam, positie, prijs){
+  if(blokkeerAlsKijker()) return;
   naam = (naam||'').trim();
   if(!naam){ alert('Vul een spelernaam in.'); return; }
   if(STATE.players.some(p=>p.naam===naam)){ alert('Er bestaat al een speler met deze naam.'); return; }
@@ -25,9 +26,10 @@ function addPlayerToClub(club, naam, positie, prijs){
   saveState();
   renderClubSquad();
 }
-function startTransfer(naam, club){ transferTarget = {naam, club}; renderClubSquad(); }
+function startTransfer(naam, club){ if(blokkeerAlsKijker()) return; transferTarget = {naam, club}; renderClubSquad(); }
 function cancelTransfer(){ transferTarget = null; renderClubSquad(); }
 function confirmTransfer(naam, vanClub, naarClub, ronde){
+  if(blokkeerAlsKijker()) return;
   const p = STATE.players.find(pl=>pl.naam===naam && pl.club===vanClub);
   if(!p){ alert('Speler niet (meer) gevonden bij ' + vanClub + '.'); return; }
   ronde = Number(ronde) || STATE.huidigeRonde;
@@ -43,6 +45,7 @@ function confirmTransfer(naam, vanClub, naarClub, ronde){
   renderClubSquad();
 }
 function removeTransferLogEntry(idx){
+  if(blokkeerAlsKijker()) return;
   STATE.transferLog.splice(idx,1);
   saveState();
   renderClubSquad();
@@ -76,34 +79,36 @@ function renderClubSquad(){
     }
     return `<tr><td style="border-left:4px solid ${posLineColor(p.positie)};"><span class="badge ${p.positie}">${p.positie}</span></td><td>${esc(p.naam)}</td><td class="muted">${esc(p.afk||'')}</td>
       <td class="muted">${fmtGeld(p.prijs)}</td>
-      <td><button class="btn small" data-start-transfer="${esc(p.naam)}" data-start-transfer-club="${esc(club)}">transfer / vertrek</button></td></tr>${transferRow}`;
+      <td>${canEdit() ? `<button class="btn small" data-start-transfer="${esc(p.naam)}" data-start-transfer-club="${esc(club)}">transfer / vertrek</button>` : ''}</td></tr>${transferRow}`;
   }).join('') || '<tr><td colspan="5" class="muted">Geen spelers gevonden.</td></tr>';
 
   const pn = pendingNewPlayer[club] || {naam:'', positie:'V', prijs:''};
   const logRows = STATE.transferLog.slice().sort((a,b)=>b.ronde-a.ronde).map((l,i)=>
     `<tr><td>Ronde ${l.ronde}</td><td>${esc(l.naam)}</td><td class="muted">${esc(l.vanClub)}</td><td>&rarr;</td>
       <td class="muted">${l.naarClub ? esc(l.naarClub) : '<span class="flag">uit competitie</span>'}</td>
-      <td><span class="close-btn" title="verwijder logregel" data-remove-transferlog="${STATE.transferLog.indexOf(l)}">✕</span></td></tr>`
+      <td>${canEdit() ? `<span class="close-btn" title="verwijder logregel" data-remove-transferlog="${STATE.transferLog.indexOf(l)}">✕</span>` : ''}</td></tr>`
   ).join('') || '<tr><td colspan="6" class="muted">Nog geen transfers gelogd.</td></tr>';
 
   document.getElementById('clubSquadPanel').innerHTML = `
     <h2 style="margin-top:0;">${esc(club)} <span class="muted small">(${squad.length} spelers)</span></h2>
     <table><thead><tr><th>Pos</th><th>Speler</th><th>Club-afk.</th><th>Prijs</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="row" style="margin-top:10px;">
+    ${canEdit() ? `<div class="row" style="margin-top:10px;">
       <input placeholder="Naam nieuwe speler" id="newPlayerNaam" value="${esc(pn.naam)}">
       <select id="newPlayerPositie">
         ${['K','V','M','A'].map(p=>`<option value="${p}" ${p===pn.positie?'selected':''}>${POS_NAAM[p]}</option>`).join('')}
       </select>
       <input type="number" placeholder="Prijs" id="newPlayerPrijs" value="${esc(pn.prijs)}" style="width:110px;">
       <button class="btn small primary" id="btnAddPlayerToClub">+ speler toevoegen aan ${esc(club)}</button>
-    </div>
+    </div>` : ''}
   `;
-  document.getElementById('btnAddPlayerToClub').addEventListener('click', ()=>{
-    const naam = document.getElementById('newPlayerNaam').value;
-    const positie = document.getElementById('newPlayerPositie').value;
-    const prijs = document.getElementById('newPlayerPrijs').value;
-    addPlayerToClub(club, naam, positie, prijs);
-  });
+  if(canEdit()){
+    document.getElementById('btnAddPlayerToClub').addEventListener('click', ()=>{
+      const naam = document.getElementById('newPlayerNaam').value;
+      const positie = document.getElementById('newPlayerPositie').value;
+      const prijs = document.getElementById('newPlayerPrijs').value;
+      addPlayerToClub(club, naam, positie, prijs);
+    });
+  }
 
   document.getElementById('transferLogPanel').innerHTML = `
     <h3 style="margin-top:0;">Transferhistorie (alle clubs)</h3>

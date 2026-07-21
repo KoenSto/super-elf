@@ -79,6 +79,7 @@ function liveTotaalRonde(team, ronde){
 /* ============ Team mutaties (toevoegen/verwijderen) ============ */
 function slugify(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 function addTeam(speler, teamnaam){
+  if(blokkeerAlsKijker()) return;
   speler = (speler||'').trim() || 'Nieuwe deelnemer';
   teamnaam = (teamnaam||'').trim() || 'Nieuw team';
   const key = 'custom_' + slugify(teamnaam) + '_' + Date.now();
@@ -92,6 +93,7 @@ function addTeam(speler, teamnaam){
   if(detailEl.scrollIntoView) detailEl.scrollIntoView({behavior:'smooth'});
 }
 function removeTeam(key){
+  if(blokkeerAlsKijker()) return;
   const team = STATE.teams[key];
   if(!team) return;
   if(!confirm(`Team "${team.teamnaam}" (${team.speler}) verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
@@ -103,6 +105,7 @@ function removeTeam(key){
   renderTeamDetail();
 }
 function addBasisSpeler(teamKey, club, naam){
+  if(blokkeerAlsKijker()) return;
   const p = STATE.players.find(pl=>pl.club===club && pl.naam===naam);
   if(!p){ alert('Kies een geldige speler.'); return; }
   const team = STATE.teams[teamKey];
@@ -111,6 +114,7 @@ function addBasisSpeler(teamKey, club, naam){
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeBasisSpeler(teamKey, idx){
+  if(blokkeerAlsKijker()) return;
   const team = STATE.teams[teamKey];
   team.basis.splice(idx,1);
   saveState(); buildTeamList(); renderTeamDetail();
@@ -120,6 +124,7 @@ const WISSEL_TYPES = {
   vrij: {label:'Vrije wissel (transfer/contractontbinding)', badge:'flag', telt_mee:false}
 };
 function addWissel(teamKey, club, naam, vanafRonde, uitNaam, type){
+  if(blokkeerAlsKijker()) return;
   const p = STATE.players.find(pl=>pl.club===club && pl.naam===naam);
   if(!p){ alert('Kies een geldige speler om in te wisselen.'); return; }
   const team = STATE.teams[teamKey];
@@ -150,6 +155,7 @@ function addWissel(teamKey, club, naam, vanafRonde, uitNaam, type){
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeWissel(teamKey, idx){
+  if(blokkeerAlsKijker()) return;
   const team = STATE.teams[teamKey];
   const w = team.wissels[idx];
   if(!w) return;
@@ -158,6 +164,7 @@ function removeWissel(teamKey, idx){
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeWisselLogEntry(idx){
+  if(blokkeerAlsKijker()) return;
   STATE.wisselLog.splice(idx,1);
   saveState(); renderTeamDetail();
 }
@@ -239,7 +246,7 @@ function renderTeamDetail(){
       <td class="muted">${fmtGeld(b.prijs)}</td>
       <td>${b.mogelijke_wissel ? `<span class="flag">mogelijk gewisseld ~ronde ${b.sinds_ronde}</span>` : '<span class="muted small">vanaf start</span>'}</td>
       <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}</td>
-      <td><span class="close-btn" title="verwijder uit basis" data-remove-basis="${team.key}" data-remove-basis-idx="${b._idx}">✕</span></td></tr>`;
+      <td>${canEdit() ? `<span class="close-btn" title="verwijder uit basis" data-remove-basis="${team.key}" data-remove-basis-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7" class="muted">Nog geen basisspelers. Voeg ze hieronder toe.</td></tr>';
 
   const wisselRows = team.wissels.map((w,i)=>{
@@ -252,7 +259,7 @@ function renderTeamDetail(){
     return `<tr><td style="border-left:4px solid ${posLineColor(w.positie)};">#${w.volgnr}</td><td><span class="badge ${w.positie}">${w.positie}</span></td><td>${esc(w.naam)}</td><td class="muted">${esc(w.club)}</td>
       <td class="muted">${fmtGeld(w.prijs)}</td><td class="small muted">${geschat}</td><td>${typeBadge}</td>
       <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}</td>
-      <td><span class="close-btn" title="verwijder wissel" data-remove-wissel="${team.key}" data-remove-wissel-idx="${i}">✕</span></td></tr>`;
+      <td>${canEdit() ? `<span class="close-btn" title="verwijder wissel" data-remove-wissel="${team.key}" data-remove-wissel-idx="${i}">✕</span>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="9" class="muted">Geen wissels gebruikt.</td></tr>';
 
   const pbClub = pendingBasisClub[team.key] || DATA.clubs[0];
@@ -271,13 +278,13 @@ function renderTeamDetail(){
     return `<tr><td>Ronde ${l.ronde}</td><td>${l.uit ? esc(l.uit.naam)+' <span class="muted small">('+esc(l.uit.club)+')</span>' : '<span class="muted">–</span>'}</td>
       <td>&rarr;</td><td>${esc(l.in.naam)} <span class="muted small">(${esc(l.in.club)})</span></td>
       <td><span class="${typeInfo.badge||'pill'}" style="font-size:10px;">${typeInfo.telt_mee?'regulier':'vrij (transfer)'}</span></td>
-      <td><span class="close-btn" title="verwijder logregel" data-remove-wissellog="${i}">✕</span></td></tr>`;
+      <td>${canEdit() ? `<span class="close-btn" title="verwijder logregel" data-remove-wissellog="${i}">✕</span>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="6" class="muted">Nog geen wissels gelogd voor dit team.</td></tr>';
 
   el.innerHTML = `<div class="panel">
     <span class="close-btn" id="closeTeamDetail">✕ sluiten</span>
     <h2>${esc(team.teamnaam)} <span class="muted small">— ${esc(team.speler)}</span>
-      <button class="btn small danger" style="margin-left:10px;" data-remove-team="${team.key}">team verwijderen</button>
+      ${canEdit() ? `<button class="btn small danger" style="margin-left:10px;" data-remove-team="${team.key}">team verwijderen</button>` : ''}
     </h2>
     <div class="row" style="margin-bottom:10px;">
       <span class="pill">Formatie: <b>${formatie}</b></span>
@@ -294,16 +301,16 @@ function renderTeamDetail(){
     </div>
     <h3>Basisopstelling</h3>
     <table><thead><tr><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Status</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${basisRows}</tbody></table>
-    <div class="row" style="margin-top:8px;">
+    ${canEdit() ? `<div class="row" style="margin-top:8px;">
       <select data-newbasis-club="${team.key}">${clubOptionsHTML(pbClub)}</select>
       <select data-newbasis-speler="${team.key}">${playerOptionsHTML(pbClub, pbSpeler)}</select>
       <button class="btn small primary" data-add-basis="${team.key}">+ speler toevoegen aan basis</button>
-    </div>
+    </div>` : ''}
 
     <h3 style="margin-top:18px;">Reservebank / wissels (max ${maxWisselsVoorRonde(ronde)} regulier + evt. vrije wissels bij transfer)</h3>
     <table><thead><tr><th>#</th><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Periode</th><th>Type</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${wisselRows}</tbody></table>
     <div class="note small">Een wissel vervangt een speler uit de basisopstelling door een nieuwe speler (die op de reservebank komt). Kies wie eruit gaat, wie erin komt, vanaf welke ronde, en of het een <b>reguliere wissel</b> is (telt mee voor het maximum) of een <b>vrije wissel</b> (bijv. omdat het contract van de speler werd ontbonden/hij transfervrij werd &mdash; telt niet mee). Dit wordt exact gelogd, in tegenstelling tot het origineel bestand.</div>
-    <div class="row" style="margin-top:8px;flex-wrap:wrap;">
+    ${canEdit() ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;">
       ${team.basis.length>0 ? `<label class="small muted">eruit (basis) <select data-newwissel-uit="${team.key}">${uitOptionsHTML}</select></label>` : '<span class="muted small">Geen basisspelers om te wisselen &mdash; wordt direct aan de reservebank toegevoegd.</span>'}
       <span class="muted">&rarr;</span>
       <label class="small muted">erin <select data-newwissel-club="${team.key}">${clubOptionsHTML(pwClub)}</select>
@@ -311,7 +318,7 @@ function renderTeamDetail(){
       <label class="small muted">vanaf ronde <input type="number" min="1" max="34" value="${pwRonde}" data-newwissel-ronde="${team.key}" style="width:50px;"></label>
       <label class="small muted">type <select data-newwissel-type="${team.key}">${typeOptionsHTML}</select></label>
       <button class="btn small primary" data-add-wissel="${team.key}">+ wissel doorvoeren</button>
-    </div>
+    </div>` : ''}
 
     <h3 style="margin-top:18px;">Wisselhistorie</h3>
     <table><thead><tr><th>Ronde</th><th>Eruit</th><th></th><th>Erin</th><th>Type</th><th></th></tr></thead><tbody>${wisselLogRows}</tbody></table>

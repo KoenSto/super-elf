@@ -61,6 +61,7 @@ function bouwBekerSlots(teamKeys, bracketSize){
 }
 
 function trekBekerLoting(){
+  if(blokkeerAlsKijker()) return;
   buildTeamList();
   const teamKeys = TEAM_LIST.map(t=>t.key);
   if(teamKeys.length < 2){
@@ -199,6 +200,7 @@ function renderBeker(){
 }
 
 function wisBekerLoting(){
+  if(blokkeerAlsKijker()) return;
   if(!STATE.beker || !STATE.beker.drawn){
     alert('Er is nog geen loting om te wissen.');
     return;

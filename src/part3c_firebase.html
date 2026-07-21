@@ -134,6 +134,8 @@ async function startAppAfterAuth(){
   const badge = document.getElementById('loginUserBadge');
   if(badge && currentUser) badge.textContent = '👤 ' + emailToUsername(currentUser.email);
   toonDataTabAlleenVoorEditors();
+  toonKijkerBanner();
+  toonBewerkElementenAlleenVoorEditors();
 }
 
 // Het Data-tabblad (bestand koppelen, cloud-status, backup/reset) is alleen relevant voor de
@@ -145,6 +147,34 @@ function toonDataTabAlleenVoorEditors(){
   if(!btn) return;
   const magSchrijven = currentUser && EDITOR_EMAILS.includes(String(currentUser.email||'').toLowerCase());
   btn.style.display = magSchrijven ? '' : 'none';
+}
+
+// canEdit() is de ENIGE plek die bepaalt of het ingelogde account mag wijzigen (koen/frank).
+// Dit is puur een client-side gemakslaag: hij verbergt/blokkeert bewerkknoppen in de app zelf
+// zodat een kijker-account (zoals "gast") niets per ongeluk aanpast. Echte beveiliging tegen
+// opzettelijk schrijven moet in de Firebase-databaseregels staan (Firebase console) — dat kan
+// alleen via het account van koen/frank worden ingesteld, niet vanuit deze code.
+function canEdit(){
+  return !!(currentUser && EDITOR_EMAILS.includes(String(currentUser.email||'').toLowerCase()));
+}
+function blokkeerAlsKijker(){
+  if(canEdit()) return false;
+  alert('Je bent ingelogd als kijker (alleen-lezen) en kunt hier niets aanpassen. Vraag koen of frank als je een wijziging nodig hebt.');
+  return true;
+}
+function toonKijkerBanner(){
+  const el = document.getElementById('kijkerBanner');
+  if(el) el.style.display = canEdit() ? 'none' : '';
+}
+
+// Statische bewerk-knoppen/rijen (niet degene die bij elke render() opnieuw worden opgebouwd,
+// die staan zelf al achter canEdit()-checks in hun template) in één keer verbergen voor kijkers.
+function toonBewerkElementenAlleenVoorEditors(){
+  const mag = canEdit();
+  ['nieuwTeamPanel','rondeAddMatchRow','bekerKnoppenRow'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = mag ? '' : 'none';
+  });
 }
 
 async function doLogin(username, password){

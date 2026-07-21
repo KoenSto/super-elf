@@ -169,6 +169,7 @@ function initDataTab(){
   });
   document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('importFile').click());
   document.getElementById('importFile').addEventListener('change', (e)=>{
+    if(blokkeerAlsKijker()) return;
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
@@ -183,6 +184,7 @@ function initDataTab(){
     reader.readAsText(file);
   });
   document.getElementById('btnReset').addEventListener('click', ()=>{
+    if(blokkeerAlsKijker()) return;
     if(confirm('Alle eigen invoer wissen en terugzetten naar de lege seizoen 26-27 basis?')){
       STATE = defaultState();
       saveState();

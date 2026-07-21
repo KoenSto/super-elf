@@ -17,6 +17,7 @@ function initRondeTab(){
     if(STATE.huidigeRonde<34){ STATE.huidigeRonde++; sel.value=STATE.huidigeRonde; saveState(); renderRonde(); }
   });
   document.getElementById('btnAddMatch').addEventListener('click', ()=>{
+    if(blokkeerAlsKijker()) return;
     const rd = ensureRonde(STATE.huidigeRonde);
     rd.matches.push({clubThuis:DATA.clubs[0], clubUit:DATA.clubs[1], uitslagThuis:0, uitslagUit:0, spelersThuis:[], spelersUit:[]});
     saveState(); renderRonde();
@@ -65,16 +66,16 @@ function statRowHTML(ronde, mi, side, pi, sp, resultaat, club){
       // teamscore van deze wedstrijd — zie syncUitslag(). Hier alleen tonen, niet bewerkbaar.
       return `<span class="stat-auto ${sp[k]?'clean':''}" title="Automatisch: 1 als het team van deze speler in deze wedstrijd geen tegengoal kreeg.">${sp[k]?1:0}</span>`;
     }
-    return `<input type="number" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="${k}" value="${sp[k]||0}">`;
+    return `<input type="number" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="${k}" value="${sp[k]||0}" ${canEdit()?'':'disabled'}>`;
   }).join('');
   const naamStijl = sp.naam ? `background-color:var(--pos${sp.positie}-bg);color:var(--pos${sp.positie}-text);font-weight:600;` : '';
   return `<div class="player-row" style="border-left-color:${posLineColor(sp.positie)};">
     <span class="muted small">${pi+1}</span>
-    <select data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" style="${naamStijl}">${playerSelectOptionsHTML(club, sp.naam)}</select>
+    <select data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" style="${naamStijl}" ${canEdit()?'':'disabled'}>${playerSelectOptionsHTML(club, sp.naam)}</select>
     <span class="badge ${sp.positie}" title="Positie staat vast per speler (spelersdatabase)">${sp.positie}</span>
     ${statInputs}
     <span class="pts ${puntenClass}">${punten}</span>
-    <span class="close-btn" title="verwijder" data-remove-r="${ronde}" data-remove-m="${mi}" data-remove-side="${side}" data-remove-p="${pi}">✕</span>
+    ${canEdit() ? `<span class="close-btn" title="verwijder" data-remove-r="${ronde}" data-remove-m="${mi}" data-remove-side="${side}" data-remove-p="${pi}">✕</span>` : '<span></span>'}
   </div>`;
 }
 
@@ -91,25 +92,25 @@ function renderMatchCard(ronde, m, mi){
 
   div.innerHTML = `
     <div class="match-head">
-      <select data-r="${ronde}" data-m="${mi}" data-field="clubThuis">${clubOpts(m.clubThuis)}</select>
+      <select data-r="${ronde}" data-m="${mi}" data-field="clubThuis" ${canEdit()?'':'disabled'}>${clubOpts(m.clubThuis)}</select>
       <div class="score" title="De teamscore wordt automatisch berekend uit de goals, gescoorde penalty's en eigen doelpunten van de spelers hieronder.">
         <span class="score-num">${m.uitslagThuis||0}</span>
         <span>-</span>
         <span class="score-num">${m.uitslagUit||0}</span>
       </div>
-      <select data-r="${ronde}" data-m="${mi}" data-field="clubUit">${clubOpts(m.clubUit)}</select>
+      <select data-r="${ronde}" data-m="${mi}" data-field="clubUit" ${canEdit()?'':'disabled'}>${clubOpts(m.clubUit)}</select>
       <span class="pill">${resThuis ? {winst:'Winst thuis',gelijk:'Gelijkspel',verlies:'Winst uit'}[resThuis] : '—'}</span>
       <span class="muted small" style="margin-left:auto;">Team thuis: <b class="pts">${totThuis}</b> &nbsp; Team uit: <b class="pts">${totUit}</b></span>
-      <span class="close-btn" title="verwijder wedstrijd" data-remove-match="${mi}" data-remove-ronde="${ronde}">✕ wedstrijd</span>
+      ${canEdit() ? `<span class="close-btn" title="verwijder wedstrijd" data-remove-match="${mi}" data-remove-ronde="${ronde}">✕ wedstrijd</span>` : ''}
     </div>
     <div class="match-teams">
       <div class="team-side">
-        <h4>${esc(m.clubThuis)} <span class="muted small">(thuis)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="thuis">+ speler</button></h4>
+        <h4>${esc(m.clubThuis)} <span class="muted small">(thuis)</span> ${canEdit() ? `<button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="thuis">+ speler</button>` : ''}</h4>
         ${evtHead}
         ${m.spelersThuis.map((sp,pi)=>statRowHTML(ronde,mi,'thuis',pi,sp,resThuis,m.clubThuis)).join('')}
       </div>
       <div class="team-side">
-        <h4>${esc(m.clubUit)} <span class="muted small">(uit)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="uit">+ speler</button></h4>
+        <h4>${esc(m.clubUit)} <span class="muted small">(uit)</span> ${canEdit() ? `<button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="uit">+ speler</button>` : ''}</h4>
         ${evtHead}
         ${m.spelersUit.map((sp,pi)=>statRowHTML(ronde,mi,'uit',pi,sp,resUit,m.clubUit)).join('')}
       </div>
@@ -124,6 +125,7 @@ function rondeVeldHandler(e){
   const t = e.target;
   if(!t.dataset) return;
   if(t.dataset.field && t.dataset.r!==undefined && t.dataset.m!==undefined && t.dataset.side===undefined){
+    if(blokkeerAlsKijker()){ renderRonde(); return; }
     const rd = ensureRonde(t.dataset.r);
     const m = rd.matches[t.dataset.m];
     if(!m) return;
@@ -135,6 +137,7 @@ function rondeVeldHandler(e){
     return;
   }
   if(t.dataset.field && t.dataset.side!==undefined){
+    if(blokkeerAlsKijker()){ renderRonde(); return; }
     const rd = ensureRonde(t.dataset.r);
     const m = rd.matches[t.dataset.m];
     if(!m) return;
@@ -160,6 +163,8 @@ document.addEventListener('input', rondeVeldHandler);
 document.addEventListener('change', rondeVeldHandler);
 document.addEventListener('click', (e)=>{
   const t = e.target;
+  if(t.dataset.addR===undefined && t.dataset.removeR===undefined && t.dataset.removeMatch===undefined) return;
+  if(blokkeerAlsKijker()) return;
   if(t.dataset.addR!==undefined){
     const rd = ensureRonde(t.dataset.addR);
     const m = rd.matches[t.dataset.addM];
