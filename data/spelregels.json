@@ -105,5 +105,23 @@
   "beker_winnaar": 6,
   "beker_2e": 3
  },
- "extra_wissel_na_ronde": 17
+ "extra_wissel_na_ronde": 17,
+ "periodes": {
+  "periode1": {
+   "van": 1,
+   "tot": 9
+  },
+  "periode2": {
+   "van": 10,
+   "tot": 17
+  },
+  "periode3": {
+   "van": 18,
+   "tot": 26
+  },
+  "periode4": {
+   "van": 27,
+   "tot": 34
+  }
+ }
 }
