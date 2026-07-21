@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Super Elf Dashboard</title>
+<script id="embeddedStateJSON" type="application/json">null</script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
+:root{
+  /* PAS bv huisstijl: rood accent op wit/lichtgrijs, donkergrijze tekst */
+  --bg:#f6f6f7; --panel:#ffffff; --panel2:#f2f2f3; --border:#e2e2e4;
+  --text:#333333; --muted:#5f5f5f; --accent:#e62428; --accent-dark:#c21b1f; --accent2:#e62428;
+  --warn:#b45309; --warn-bg:#fef3c7; --danger:#c21b1f; --pos:#15803d; --neg:#c21b1f;
+  /* pastel lijnkleuren per positie */
+  --posK:#f2b705; --posK-bg:#fdf3d3; --posK-text:#8a6a00;
+  --posV:#5b9bd5; --posV-bg:#dcebf9; --posV-text:#2a5a8a;
+  --posM:#5fbf8f; --posM-bg:#dcf3e7; --posM-text:#1f6b45;
+  --posA:#ef8354; --posA-bg:#fde3d4; --posA-text:#a3441c;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:"DM Sans",-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+header{background:var(--panel);border-bottom:2px solid var(--accent);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+header h1{font-size:18px;margin:0;font-weight:800;color:var(--text);}
+header .sub{color:var(--muted);font-size:12px;}
+nav{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
+nav button{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;}
+nav button.active{background:var(--accent);border-color:var(--accent);color:#ffffff;}
+nav button:hover:not(.active){border-color:var(--accent);color:var(--accent);}
+main{max-width:1300px;margin:0 auto;padding:20px;}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.panel h2{margin-top:0;font-size:16px;color:var(--text);}
+.panel h3{font-size:13px;color:var(--accent-dark);text-transform:uppercase;letter-spacing:.04em;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.grid{display:grid;gap:12px;}
+select, input, button.btn{background:#ffffff;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;}
+input[type=number]{width:60px;text-align:center;}
+button.btn{cursor:pointer;font-weight:600;background:var(--panel2);}
+button.btn:hover{border-color:var(--accent);color:var(--accent-dark);}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#ffffff;}
+button.btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);color:#fff;}
+button.btn.danger{background:#ffffff;border-color:var(--danger);color:var(--danger);}
+button.btn.danger:hover{background:var(--danger);color:#fff;}
+button.btn.small{padding:3px 8px;font-size:12px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;}
+th{color:var(--muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+tr:hover td{background:var(--panel2);}
+.badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge.K{background:var(--posK-bg);color:var(--posK-text);}
+.badge.V{background:var(--posV-bg);color:var(--posV-text);}
+.badge.M{background:var(--posM-bg);color:var(--posM-text);}
+.badge.A{background:var(--posA-bg);color:var(--posA-text);}
+.pts{font-weight:700;}
+.pts.pos{color:var(--pos);}
+.pts.neg{color:var(--neg);}
+.muted{color:var(--muted);}
+.small{font-size:12px;}
+.match-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;}
+.match-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.match-head select{font-weight:700;}
+.match-head .score{display:flex;align-items:center;gap:6px;}
+.match-teams{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:800px){.match-teams{grid-template-columns:1fr;}}
+.team-side h4{margin:4px 0 6px;font-size:13px;}
+.team-side{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+.player-row{display:grid;grid-template-columns:20px 1fr 30px repeat(10,30px) 40px 20px;gap:3px;align-items:center;margin-bottom:3px;font-size:12px;padding:2px 4px;border-left:4px solid var(--border);border-radius:3px;background:#ffffff;}
+.player-row input[type=number]{width:100%;padding:2px;font-size:12px;}
+.player-row .lbl{font-size:10px;color:var(--muted);text-align:center;}
+.evt-head{display:grid;grid-template-columns:20px 1fr 30px repeat(10,30px) 40px 20px;gap:3px;font-size:9px;color:var(--muted);text-align:center;margin-bottom:4px;}
+.evt-head span:nth-child(2){text-align:left;}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
+.team-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;}
+.team-card:hover{border-color:var(--accent);}
+.team-card .rank{font-size:11px;color:var(--muted);}
+.team-card .name{font-weight:700;font-size:14px;color:var(--text);}
+.team-card .sub{font-size:11px;color:var(--muted);}
+.team-card .tot{font-size:20px;font-weight:800;color:var(--accent-dark);float:right;}
+.pill{display:inline-block;background:var(--panel2);border:1px solid var(--border);padding:2px 8px;border-radius:20px;font-size:11px;margin-right:4px;}
+.flag{background:var(--warn-bg);color:var(--warn);border:1px solid #f5d68e;padding:1px 6px;border-radius:6px;font-size:10px;margin-left:6px;}
+.diffzero{color:var(--pos);font-weight:700;}
+.diffnonzero{color:var(--warn);font-weight:700;}
+.close-btn{float:right;cursor:pointer;color:var(--muted);}
+.close-btn:hover{color:var(--danger);}
+.tabs2{display:flex;gap:4px;margin-bottom:10px;}
+.tabs2 button{background:var(--panel2);border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;}
+.tabs2 button.active{color:var(--text);border-color:var(--accent);}
+.note{background:#fbeaea;border:1px solid #f3c6c7;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#7a2426;margin-bottom:12px;}
+.note b{color:var(--accent-dark);}
+::-webkit-scrollbar{height:8px;width:8px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:20px;}
+
+@media (max-width:640px){
+  header{padding:10px 12px;gap:8px;}
+  header h1{font-size:15px;}
+  header .sub{font-size:10px;}
+  #fileConnStatus{font-size:12px;padding:8px 12px;margin-left:0 !important;order:2;}
+  nav{width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;order:3;justify-content:flex-start;}
+  nav button{flex:0 0 auto;padding:8px 12px;font-size:12px;}
+  main{padding:10px;}
+  .panel{padding:12px;}
+  .row{gap:6px;}
+  table{font-size:12px;}
+  th,td{padding:5px 6px;}
+  .card-grid{grid-template-columns:1fr 1fr;}
+  h1{font-size:16px;}
+}
+@media (max-width:420px){
+  .card-grid{grid-template-columns:1fr;}
+}
+#appRoot{display:none;}
+#loginOverlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+.login-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:32px 28px;max-width:340px;width:100%;box-shadow:0 8px 24px rgba(0,0,0,0.08);}
+.login-card h1{font-size:18px;margin:0 0 4px;color:var(--text);}
+.login-card .sub{font-size:12px;color:var(--muted);margin-bottom:20px;}
+.login-card label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;margin-top:12px;}
+.login-card input{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;}
+.login-card button{width:100%;margin-top:18px;padding:10px;}
+#loginError{display:block;margin-top:10px;color:var(--danger);font-size:12.5px;min-height:16px;}
+</style>
+</head>

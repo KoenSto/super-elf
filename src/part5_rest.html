@@ -1,0 +1,228 @@
+<script>
+/* ============ TAB: Tussenstand ============ */
+let standRonde = 1;
+let standSortKey = 'totaal';
+let standSortDir = 'desc';
+function initStandTab(){
+  standRonde = STATE.huidigeRonde;
+  const sel = document.getElementById('standRondeSelect');
+  sel.innerHTML = '';
+  for(let i=1;i<=34;i++){
+    const o = document.createElement('option');
+    o.value = i; o.textContent = 'Ronde ' + i;
+    sel.appendChild(o);
+  }
+  sel.value = standRonde;
+  sel.addEventListener('change', ()=>{ standRonde = Number(sel.value); renderStand(); });
+  renderStand();
+}
+const STAND_COLUMNS = [
+  {key:'rank', label:'#', sortable:false},
+  {key:'team', label:'Team', sortable:true},
+  {key:'speler', label:'Speler', sortable:true},
+  {key:'live', label:'Ronde live', sortable:true},
+  {key:'orig', label:'Ronde origineel', sortable:true},
+  {key:'diff', label:'Verschil', sortable:false},
+  {key:'p1', label:'P1', sortable:true},
+  {key:'p2', label:'P2', sortable:true},
+  {key:'p3', label:'P3', sortable:true},
+  {key:'p4', label:'P4', sortable:true},
+  {key:'totaal', label:'Totaal', sortable:true},
+];
+function renderStand(){
+  const ronde = standRonde;
+  const sel = document.getElementById('standRondeSelect');
+  if(sel && Number(sel.value)!==ronde) sel.value = ronde;
+  let rows = TEAM_LIST.map(team=>{
+    const live = liveTotaalRonde(team, ronde);
+    const orig = origineelRonde(team, ronde);
+    const diff = orig!==null ? live.total-orig : null;
+    const ts = team.tsId!==undefined ? DATA.tussenstand[team.tsId].weken : {};
+    return {
+      team, live: live.total, gevonden: live.gevonden, orig, diff,
+      p1: ts.P1 ?? null, p2: ts.P2 ?? null, p3: ts.P3 ?? null, p4: ts.P4 ?? null,
+      totaal: origineelTotaal(team)
+    };
+  });
+  rows.sort((a,b)=>{
+    let av, bv;
+    if(standSortKey==='team'){ av=a.team.teamnaam.toLowerCase(); bv=b.team.teamnaam.toLowerCase(); }
+    else if(standSortKey==='speler'){ av=a.team.speler.toLowerCase(); bv=b.team.speler.toLowerCase(); }
+    else { av = a[standSortKey]; bv = b[standSortKey]; av = av==null?-Infinity:av; bv = bv==null?-Infinity:bv; }
+    if(av<bv) return standSortDir==='asc' ? -1 : 1;
+    if(av>bv) return standSortDir==='asc' ? 1 : -1;
+    return 0;
+  });
+  const arrow = (key)=> standSortKey===key ? (standSortDir==='asc'?' ▲':' ▼') : '';
+  let html = '<table><thead><tr>';
+  STAND_COLUMNS.forEach(c=>{
+    if(c.key==='live'){ c = {...c, label:`Ronde ${ronde} live`}; }
+    if(c.key==='orig'){ c = {...c, label:`Ronde ${ronde} origineel`}; }
+    if(c.sortable){
+      html += `<th style="cursor:pointer;user-select:none;" data-sort-key="${c.key}">${c.label}${arrow(c.key)}</th>`;
+    } else {
+      html += `<th>${c.label}</th>`;
+    }
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    html += `<tr style="cursor:pointer" data-goto-team="${r.team.key}">
+      <td>${i+1}</td><td><b>${esc(r.team.teamnaam)}</b></td><td class="muted">${esc(r.team.speler)}</td>
+      <td class="pts">${r.live}</td><td>${r.orig??'-'}</td>
+      <td class="${r.diff===0?'diffzero':(r.diff===null?'muted':'diffnonzero')}">${r.diff===null?'-':r.diff}</td>
+      <td>${r.p1??'-'}</td><td>${r.p2??'-'}</td><td>${r.p3??'-'}</td><td>${r.p4??'-'}</td>
+      <td><b>${r.totaal??'-'}</b></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('standTable').innerHTML = html;
+  document.querySelectorAll('[data-goto-team]').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      selectedTeamKey = tr.dataset.gotoTeam;
+      switchTab('teams');
+      renderTeamDetail();
+      setTimeout(()=>document.getElementById('teamDetail').scrollIntoView({behavior:'smooth'}),50);
+    });
+  });
+  document.querySelectorAll('[data-sort-key]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.sortKey;
+      if(standSortKey===key){ standSortDir = standSortDir==='asc' ? 'desc' : 'asc'; }
+      else { standSortKey = key; standSortDir = (key==='team'||key==='speler') ? 'asc' : 'desc'; }
+      renderStand();
+    });
+  });
+}
+
+/* ============ TAB: Spelersdatabase ============ */
+function initSpelersTab(){
+  const clubSel = document.getElementById('spelerClubFilter');
+  DATA.clubs.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; clubSel.appendChild(o); });
+  ['spelerClubFilter','spelerPosFilter','spelerSearch'].forEach(id=>document.getElementById(id).addEventListener('input', renderSpelers));
+  renderSpelers();
+}
+function renderSpelers(){
+  const club = document.getElementById('spelerClubFilter').value;
+  const pos = document.getElementById('spelerPosFilter').value;
+  const q = (document.getElementById('spelerSearch').value||'').toLowerCase();
+  let list = STATE.players.filter(p=>
+    (!club || p.club===club) && (!pos || p.positie===pos) && (!q || p.naam.toLowerCase().includes(q))
+  );
+  list = list.sort((a,b)=> (b.totaal||0)-(a.totaal||0));
+  let html = `<table><thead><tr><th>Club</th><th>Speler</th><th>Pos</th><th>Prijs</th><th>Totaal</th></tr></thead><tbody>`;
+  list.slice(0,400).forEach(p=>{
+    html += `<tr><td class="muted" style="border-left:4px solid ${posLineColor(p.positie)};">${esc(p.club)}</td><td>${esc(p.naam)}</td><td><span class="badge ${p.positie}">${p.positie}</span></td><td>${fmtGeld(p.prijs)}</td><td class="pts ${p.totaal>0?'pos':(p.totaal<0?'neg':'')}">${p.totaal??0}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  if(list.length>400) html += `<div class="muted small">... en ${list.length-400} meer. Verfijn de zoekopdracht.</div>`;
+  document.getElementById('spelersTable').innerHTML = html;
+}
+
+/* ============ TAB: Spelregels ============ */
+function initRegelsTab(){
+  const r = DATA.spelregels;
+  const t = r.puntentabel;
+  const eventRows = Object.keys(STAT_LABELS).map(k=>
+    `<tr><td>${STAT_LABELS[k]}</td><td>${t[k].K}</td><td>${t[k].V}</td><td>${t[k].M}</td><td>${t[k].A}</td></tr>`
+  ).join('');
+  document.getElementById('regelsPanel').innerHTML = `
+    <h2>Spelregels</h2>
+    <ul class="small">
+      <li>Inleg: €${r.inleg}</li>
+      <li>Team: ${r.aantal_spelers} spelers, max ${r.max_per_club} per club</li>
+      <li>Budget: ${fmtGeld(r.budget)}</li>
+      <li>Toegestane formaties: ${r.formaties.join(', ')}</li>
+      <li>Max. wissels tijdens seizoen: ${r.max_wissels}${r.extra_wissel_na_ronde ? ` (na ronde ${r.extra_wissel_na_ronde}: ${r.max_wissels+1})` : ''}</li>
+    </ul>
+    <h3>Puntentelling</h3>
+    <table><thead><tr><th></th><th>Keeper</th><th>Verdediger</th><th>Middenvelder</th><th>Aanvaller</th></tr></thead>
+    <tbody><tr><td>Winst</td><td>${t.winst.K}</td><td>${t.winst.V}</td><td>${t.winst.M}</td><td>${t.winst.A}</td></tr>
+    <tr><td>Gelijk</td><td>${t.gelijk.K}</td><td>${t.gelijk.V}</td><td>${t.gelijk.M}</td><td>${t.gelijk.A}</td></tr>
+    ${eventRows}</tbody></table>
+    <h3 style="margin-top:16px;">Indicatie prijzengeld</h3>
+    <table><tbody>${Object.entries(r.prijzengeld_indicatie).map(([k,v])=>`<tr><td>${k}</td><td>${v}%</td></tr>`).join('')}</tbody></table>
+  `;
+}
+
+/* ============ TAB: Data ============ */
+function initDataTab(){
+  updateFileConnStatus();
+  document.getElementById('btnConnectFile').addEventListener('click', async ()=>{
+    const ok = await connectFile();
+    if(ok) flashDataStatus('Bestand gekoppeld — automatisch opslaan actief.');
+  });
+  document.getElementById('btnExport').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(STATE,null,1)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'super-elf-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+  });
+  document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        STATE = JSON.parse(reader.result);
+        saveState();
+        alert('Backup geïmporteerd.');
+        location.reload();
+      }catch(err){ alert('Kon bestand niet lezen: '+err); }
+    };
+    reader.readAsText(file);
+  });
+  document.getElementById('btnReset').addEventListener('click', ()=>{
+    if(confirm('Alle eigen invoer wissen en terugzetten naar de lege seizoen 26-27 basis?')){
+      STATE = defaultState();
+      saveState();
+      location.reload();
+    }
+  });
+  document.getElementById('btnLogoutData').addEventListener('click', ()=>{ doLogout(); });
+}
+
+/* ============ TAB SWITCHING & INIT ============ */
+function switchTab(name){
+  document.querySelectorAll('.tabcontent').forEach(s=>s.style.display='none');
+  document.getElementById('tab-'+name).style.display='block';
+  document.querySelectorAll('#mainnav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  if(name==='stand') renderStand();
+  if(name==='teams') renderTeamsGrid();
+  if(name==='clubs') renderClubSquad();
+}
+document.getElementById('mainnav').addEventListener('click', (e)=>{
+  if(e.target.dataset.tab) switchTab(e.target.dataset.tab);
+});
+
+function flashDataStatus(msg){ console.log(msg); }
+function initLoginForm(){
+  const form = document.getElementById('loginForm');
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const user = document.getElementById('loginUser').value;
+    const pass = document.getElementById('loginPass').value;
+    if(!user || !pass){ showLoginScreen('Vul gebruikersnaam en wachtwoord in.'); return; }
+    await doLogin(user, pass);
+  });
+  document.getElementById('btnLogout').addEventListener('click', ()=>{ doLogout(); });
+}
+function init(){
+  STATE = loadState();
+  buildTeamList();
+  document.getElementById('fileConnStatus').addEventListener('click', async ()=>{ await connectFile(); });
+  proberenAutomatischTeHerkoppelen();
+  initRondeTab();
+  initTeamsTab();
+  initStandTab();
+  initClubsTab();
+  initSpelersTab();
+  initRegelsTab();
+  initDataTab();
+  initLoginForm();
+  initAuthGate();
+}
+init();
+</script>
+</body>
+</html>

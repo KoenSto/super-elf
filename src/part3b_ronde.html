@@ -1,0 +1,158 @@
+<script>
+/* ============ TAB: Speelronde ============ */
+function initRondeTab(){
+  const sel = document.getElementById('rondeSelect');
+  sel.innerHTML = '';
+  for(let i=1;i<=34;i++){
+    const o = document.createElement('option');
+    o.value=i; o.textContent = 'Ronde ' + i;
+    sel.appendChild(o);
+  }
+  sel.value = STATE.huidigeRonde;
+  sel.addEventListener('change', ()=>{ STATE.huidigeRonde = Number(sel.value); saveState(); renderRonde(); });
+  document.getElementById('btnPrevRonde').addEventListener('click', ()=>{
+    if(STATE.huidigeRonde>1){ STATE.huidigeRonde--; sel.value=STATE.huidigeRonde; saveState(); renderRonde(); }
+  });
+  document.getElementById('btnNextRonde').addEventListener('click', ()=>{
+    if(STATE.huidigeRonde<34){ STATE.huidigeRonde++; sel.value=STATE.huidigeRonde; saveState(); renderRonde(); }
+  });
+  document.getElementById('btnAddMatch').addEventListener('click', ()=>{
+    const rd = ensureRonde(STATE.huidigeRonde);
+    rd.matches.push({clubThuis:DATA.clubs[0], clubUit:DATA.clubs[1], uitslagThuis:0, uitslagUit:0, spelersThuis:[], spelersUit:[]});
+    saveState(); renderRonde();
+  });
+  renderRonde();
+}
+function flashStatus(msg){
+  const el = document.getElementById('rondeStatus');
+  el.textContent = msg;
+  setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 1800);
+}
+
+function renderRonde(){
+  const ronde = STATE.huidigeRonde;
+  const rd = ensureRonde(ronde);
+  const cont = document.getElementById('matchesContainer');
+  cont.innerHTML = '';
+  if(rd.matches.length===0){
+    cont.innerHTML = '<div class="panel muted">Nog geen wedstrijden toegevoegd voor deze ronde. Klik op "+ Wedstrijd toevoegen".</div>';
+    return;
+  }
+  rd.matches.forEach((m, mi)=> cont.appendChild(renderMatchCard(ronde, m, mi)));
+}
+
+function statRowHTML(ronde, mi, side, pi, sp, resultaat){
+  const punten = berekenPunten(sp.positie, resultaat, sp);
+  const puntenClass = punten>0?'pos':(punten<0?'neg':'');
+  let statInputs = STAT_KEYS.map(k=>
+    `<input type="number" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="${k}" value="${sp[k]||0}">`
+  ).join('');
+  return `<div class="player-row" style="border-left-color:${posLineColor(sp.positie)};">
+    <span class="muted small">${pi+1}</span>
+    <input type="text" list="spelerlijst-${side}-${mi}-${ronde}" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" value="${esc(sp.naam)}" placeholder="Spelernaam">
+    <select data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="positie">
+      ${POS_LIST.map(p=>`<option value="${p}" ${sp.positie===p?'selected':''}>${p}</option>`).join('')}
+    </select>
+    ${statInputs}
+    <span class="pts ${puntenClass}">${punten}</span>
+    <span class="close-btn" title="verwijder" data-remove-r="${ronde}" data-remove-m="${mi}" data-remove-side="${side}" data-remove-p="${pi}">✕</span>
+  </div>`;
+}
+
+function renderMatchCard(ronde, m, mi){
+  const div = document.createElement('div');
+  div.className = 'match-card';
+  const resThuis = matchResultaat(m.uitslagThuis, m.uitslagUit);
+  const resUit = matchResultaat(m.uitslagUit, m.uitslagThuis);
+  const totThuis = m.spelersThuis.reduce((s,sp)=>s+berekenPunten(sp.positie,resThuis,sp),0);
+  const totUit = m.spelersUit.reduce((s,sp)=>s+berekenPunten(sp.positie,resUit,sp),0);
+
+  const clubOpts = c => DATA.clubs.map(cl=>`<option value="${esc(cl)}" ${cl===c?'selected':''}>${esc(cl)}</option>`).join('');
+  const evtHead = `<div class="evt-head"><span></span><span>Speler</span><span>Pos</span>${STAT_KEYS.map(k=>`<span>${STAT_LABELS[k]}</span>`).join('')}<span>Punten</span><span></span></div>`;
+
+  div.innerHTML = `
+    <div class="match-head">
+      <select data-r="${ronde}" data-m="${mi}" data-field="clubThuis">${clubOpts(m.clubThuis)}</select>
+      <div class="score">
+        <input type="number" min="0" style="width:44px" data-r="${ronde}" data-m="${mi}" data-field="uitslagThuis" value="${m.uitslagThuis}">
+        <span>-</span>
+        <input type="number" min="0" style="width:44px" data-r="${ronde}" data-m="${mi}" data-field="uitslagUit" value="${m.uitslagUit}">
+      </div>
+      <select data-r="${ronde}" data-m="${mi}" data-field="clubUit">${clubOpts(m.clubUit)}</select>
+      <span class="pill">${resThuis ? {winst:'Winst thuis',gelijk:'Gelijkspel',verlies:'Winst uit'}[resThuis] : '—'}</span>
+      <span class="muted small" style="margin-left:auto;">Team thuis: <b class="pts">${totThuis}</b> &nbsp; Team uit: <b class="pts">${totUit}</b></span>
+      <span class="close-btn" title="verwijder wedstrijd" data-remove-match="${mi}" data-remove-ronde="${ronde}">✕ wedstrijd</span>
+    </div>
+    <div class="match-teams">
+      <div class="team-side">
+        <h4>${esc(m.clubThuis)} <span class="muted small">(thuis)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="thuis">+ speler</button></h4>
+        ${evtHead}
+        ${m.spelersThuis.map((sp,pi)=>statRowHTML(ronde,mi,'thuis',pi,sp,resThuis)).join('')}
+        <datalist id="spelerlijst-thuis-${mi}-${ronde}">${playersOfClub(m.clubThuis).map(p=>`<option value="${esc(p.naam)}">`).join('')}</datalist>
+      </div>
+      <div class="team-side">
+        <h4>${esc(m.clubUit)} <span class="muted small">(uit)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="uit">+ speler</button></h4>
+        ${evtHead}
+        ${m.spelersUit.map((sp,pi)=>statRowHTML(ronde,mi,'uit',pi,sp,resUit)).join('')}
+        <datalist id="spelerlijst-uit-${mi}-${ronde}">${playersOfClub(m.clubUit).map(p=>`<option value="${esc(p.naam)}">`).join('')}</datalist>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+/* Event delegation for the ronde tab */
+document.addEventListener('input', (e)=>{
+  const t = e.target;
+  if(!t.dataset) return;
+  if(t.dataset.field && t.dataset.r!==undefined && t.dataset.m!==undefined && t.dataset.side===undefined){
+    const rd = ensureRonde(t.dataset.r);
+    const m = rd.matches[t.dataset.m];
+    if(!m) return;
+    if(t.dataset.field==='uitslagThuis' || t.dataset.field==='uitslagUit'){
+      m[t.dataset.field] = t.value===''?null:Number(t.value);
+    } else {
+      m[t.dataset.field] = t.value;
+    }
+    saveState();
+    renderRonde();
+    return;
+  }
+  if(t.dataset.field && t.dataset.side!==undefined){
+    const rd = ensureRonde(t.dataset.r);
+    const m = rd.matches[t.dataset.m];
+    if(!m) return;
+    const arr = t.dataset.side==='thuis' ? m.spelersThuis : m.spelersUit;
+    const sp = arr[t.dataset.p];
+    if(!sp) return;
+    const f = t.dataset.field;
+    sp[f] = (f==='naam'||f==='positie'||f==='rol') ? t.value : (t.value===''?0:Number(t.value));
+    saveState();
+    renderRonde();
+  }
+});
+document.addEventListener('click', (e)=>{
+  const t = e.target;
+  if(t.dataset.addR!==undefined){
+    const rd = ensureRonde(t.dataset.addR);
+    const m = rd.matches[t.dataset.addM];
+    const arr = t.dataset.addSide==='thuis' ? m.spelersThuis : m.spelersUit;
+    arr.push({naam:'', positie:'V', rol:'basis', goal:0,pen_scoren:0,pen_missen:0,pen_stoppen:0,eigen_doelpunt:0,assist:0,geen_tegengoals:0,geel:0,geel2:0,rood:0});
+    saveState(); renderRonde();
+  }
+  if(t.dataset.removeR!==undefined){
+    const rd = ensureRonde(t.dataset.removeR);
+    const m = rd.matches[t.dataset.removeM];
+    const arr = t.dataset.removeSide==='thuis' ? m.spelersThuis : m.spelersUit;
+    arr.splice(Number(t.dataset.removeP),1);
+    saveState(); renderRonde();
+  }
+  if(t.dataset.removeMatch!==undefined){
+    const rd = ensureRonde(t.dataset.removeRonde);
+    if(confirm('Deze wedstrijd verwijderen?')){
+      rd.matches.splice(Number(t.dataset.removeMatch),1);
+      saveState(); renderRonde();
+    }
+  }
+});
+</script>

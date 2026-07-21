@@ -1,0 +1,177 @@
+<script>
+/* ============ Login + gedeelde opslag (Firebase Auth + Realtime Database) ============
+   De site is gekoppeld aan één vast Firebase-project. Alleen wie inlogt met een geldig
+   account (aangemaakt in Firebase Authentication) krijgt de app te zien; de databaseregels
+   staan alleen lezen toe aan ingelogde gebruikers en schrijven alleen aan specifieke
+   accounts (zie Firebase console). Gebruikersnamen worden achter de schermen omgezet naar
+   een technisch e-mailadres (Firebase Auth vereist een e-mailformaat), zodat het inlogscherm
+   alleen een gebruikersnaam en wachtwoord toont. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB1OCJbRB8_peDTZAblQ_-fMl-J2TnF8u4",
+  authDomain: "super-elf-84b8d.firebaseapp.com",
+  databaseURL: "https://super-elf-84b8d-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "super-elf-84b8d",
+  storageBucket: "super-elf-84b8d.firebasestorage.app",
+  messagingSenderId: "743187486242",
+  appId: "1:743187486242:web:b3750cdb5153a736ccdc7b"
+};
+const AUTH_EMAIL_SUFFIX = '@super-elf.local';
+let fbRef = null;
+let fbListenerActive = false;
+let fbApplyingRemote = false;
+let fbConnected = false;
+let currentUser = null;
+let appStarted = false;
+
+function usernameToEmail(u){
+  return String(u||'').trim().toLowerCase().replace(/\s+/g,'') + AUTH_EMAIL_SUFFIX;
+}
+function emailToUsername(email){
+  return String(email||'').split('@')[0];
+}
+
+function initFirebaseApp(){
+  if(!window.firebase || !firebase.initializeApp) return null;
+  if(!firebase.apps || !firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
+  return firebase.app();
+}
+
+function setFirebaseStatus(msg, connected){
+  if(connected!==undefined) fbConnected = connected;
+  const el = document.getElementById('firebaseStatus');
+  if(el) el.textContent = msg;
+  const h = document.getElementById('fbHeaderStatus');
+  if(h) h.textContent = fbConnected ? '☁️ live gedeeld' : '';
+}
+
+function showLoginScreen(errMsg){
+  const overlay = document.getElementById('loginOverlay');
+  const root = document.getElementById('appRoot');
+  if(overlay) overlay.style.display = 'flex';
+  if(root) root.style.display = 'none';
+  const err = document.getElementById('loginError');
+  if(err) err.textContent = errMsg || '';
+}
+function hideLoginScreen(){
+  const overlay = document.getElementById('loginOverlay');
+  const root = document.getElementById('appRoot');
+  if(overlay) overlay.style.display = 'none';
+  if(root) root.style.display = 'block';
+}
+
+// Firebase Realtime Database staat geen "." "#" "$" "/" "[" "]" toe in objectsleutels.
+// Team-/spelersnamen (bv. "Bastiaan van Iperen sr.") kunnen die tekens wel bevatten, dus
+// slaan we STATE niet als geneste boomstructuur op, maar als één string onder een vaste key.
+function readFirebaseSnapshot(snap){
+  const wrapped = snap.val();
+  if(!wrapped) return null;
+  if(typeof wrapped.json === 'string'){
+    try{ return JSON.parse(wrapped.json); }catch(e){ console.warn('kon cloud-data niet lezen', e); return null; }
+  }
+  return wrapped; // fallback voor eventuele oudere/andere opslagvorm
+}
+
+// Herrendert alle tabbladen na een binnenkomende update van de ander,
+// zodat je niet zelf hoeft te vernieuwen om de nieuwste data te zien.
+function refreshUI(){
+  buildTeamList();
+  renderRonde();
+  renderTeamsGrid();
+  if(typeof selectedTeamKey!=='undefined' && selectedTeamKey) renderTeamDetail();
+  renderStand();
+  renderClubSquad();
+  renderSpelers();
+}
+
+function attachFirebaseListener(){
+  if(!fbRef || fbListenerActive) return;
+  fbListenerActive = true;
+  fbRef.on('value', (snap)=>{
+    if(fbApplyingRemote) return;
+    const remote = readFirebaseSnapshot(snap);
+    if(!remote) return;
+    if((remote.savedAt||0) > (STATE.savedAt||0)){
+      fbApplyingRemote = true;
+      STATE = normaliseState(remote);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+      refreshUI();
+      setFirebaseStatus('☁️ Bijgewerkt met wijzigingen van de ander (' + new Date(STATE.savedAt).toLocaleTimeString('nl-NL') + ').', true);
+      fbApplyingRemote = false;
+    }
+  }, (err)=>{
+    console.warn('Firebase-verbinding verbroken', err);
+    setFirebaseStatus('Verbinding met gedeelde opslag verbroken: ' + (err.message||err), false);
+  });
+}
+
+function pushToFirebase(){
+  if(!fbRef || fbApplyingRemote) return;
+  fbRef.set({json: JSON.stringify(STATE)}).catch(e=>console.warn('kon niet naar Firebase schrijven', e));
+}
+
+async function startAppAfterAuth(){
+  if(appStarted) return;
+  appStarted = true;
+  const app = initFirebaseApp();
+  const db = firebase.database(app);
+  fbRef = db.ref('superElfState2627');
+  try{
+    const snap = await fbRef.once('value');
+    const remote = readFirebaseSnapshot(snap);
+    if(remote && (remote.savedAt||0) > (STATE.savedAt||0)){
+      STATE = normaliseState(remote);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+      refreshUI();
+    } else if(!remote){
+      await fbRef.set({json: JSON.stringify(STATE)});
+    }
+    attachFirebaseListener();
+    setFirebaseStatus('☁️ Verbonden — wijzigingen worden gedeeld.', true);
+  }catch(e){
+    console.warn('kon gedeelde opslag niet laden', e);
+    setFirebaseStatus('Verbinden mislukt: ' + (e.message||e), false);
+  }
+  const badge = document.getElementById('loginUserBadge');
+  if(badge && currentUser) badge.textContent = '👤 ' + emailToUsername(currentUser.email);
+}
+
+async function doLogin(username, password){
+  initFirebaseApp();
+  const btn = document.getElementById('btnLogin');
+  if(btn) btn.disabled = true;
+  try{
+    await firebase.auth().signInWithEmailAndPassword(usernameToEmail(username), password);
+    return true;
+  }catch(e){
+    console.warn('login mislukt', e);
+    showLoginScreen('Inloggen mislukt: onjuiste gebruikersnaam of wachtwoord.');
+    return false;
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+function doLogout(){
+  const app = initFirebaseApp();
+  if(app) firebase.auth().signOut();
+  appStarted = false;
+  if(fbRef){ fbRef.off(); fbRef = null; }
+  fbListenerActive = false;
+}
+
+function initAuthGate(){
+  const app = initFirebaseApp();
+  if(!app){
+    showLoginScreen('Kon Firebase niet laden (geen internetverbinding?).');
+    return;
+  }
+  firebase.auth().onAuthStateChanged(function(user){
+    currentUser = user;
+    if(user){
+      hideLoginScreen();
+      startAppAfterAuth();
+    } else {
+      showLoginScreen();
+    }
+  });
+}
+</script>

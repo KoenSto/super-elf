@@ -1,0 +1,128 @@
+<script>
+/* ============ TAB: Voetbalploegen ============ */
+let selectedClubTab = null;
+let transferTarget = null; // {naam, club}
+const pendingNewPlayer = {}; // per club: {naam, positie, prijs}
+
+function initClubsTab(){
+  const sel = document.getElementById('clubTeamSelect');
+  sel.innerHTML = DATA.clubs.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  selectedClubTab = DATA.clubs[0];
+  sel.value = selectedClubTab;
+  sel.addEventListener('change', ()=>{ selectedClubTab = sel.value; transferTarget=null; renderClubSquad(); });
+  document.getElementById('clubSearch').addEventListener('input', renderClubSquad);
+  renderClubSquad();
+}
+
+function addPlayerToClub(club, naam, positie, prijs){
+  naam = (naam||'').trim();
+  if(!naam){ alert('Vul een spelernaam in.'); return; }
+  if(STATE.players.some(p=>p.naam===naam)){ alert('Er bestaat al een speler met deze naam.'); return; }
+  STATE.players.push({
+    club, afk: club.slice(0,3).toUpperCase(), naam, prijs: Number(prijs)||0, positie: positie||'V',
+    weken:{}, totaal: 0
+  });
+  saveState();
+  renderClubSquad();
+}
+function startTransfer(naam, club){ transferTarget = {naam, club}; renderClubSquad(); }
+function cancelTransfer(){ transferTarget = null; renderClubSquad(); }
+function confirmTransfer(naam, vanClub, naarClub, ronde){
+  const p = STATE.players.find(pl=>pl.naam===naam && pl.club===vanClub);
+  if(!p){ alert('Speler niet (meer) gevonden bij ' + vanClub + '.'); return; }
+  ronde = Number(ronde) || STATE.huidigeRonde;
+  const logEntry = { naam, vanClub, naarClub: naarClub==='__uit__' ? null : naarClub, positie:p.positie, prijs:p.prijs, ronde, tijdstip: new Date().toISOString() };
+  if(naarClub === '__uit__'){
+    STATE.players = STATE.players.filter(pl=>!(pl.naam===naam && pl.club===vanClub));
+  } else {
+    p.club = naarClub;
+  }
+  STATE.transferLog.push(logEntry);
+  transferTarget = null;
+  saveState();
+  renderClubSquad();
+}
+function removeTransferLogEntry(idx){
+  STATE.transferLog.splice(idx,1);
+  saveState();
+  renderClubSquad();
+}
+
+function renderClubSquad(){
+  const club = selectedClubTab;
+  const q = (document.getElementById('clubSearch').value||'').toLowerCase();
+  const posOrder = {K:0,V:1,M:2,A:3};
+  let squad = STATE.players.filter(p=>p.club===club);
+  if(q) squad = squad.filter(p=>p.naam.toLowerCase().includes(q));
+  squad = [...squad].sort((a,b)=> (posOrder[a.positie]-posOrder[b.positie]) || a.naam.localeCompare(b.naam));
+
+  const rows = squad.map(p=>{
+    const showTransferForm = transferTarget && transferTarget.naam===p.naam && transferTarget.club===club;
+    let transferRow = '';
+    if(showTransferForm){
+      const otherClubs = DATA.clubs.filter(c=>c!==club);
+      transferRow = `<tr><td colspan="5" style="background:var(--panel);">
+        <div class="row small" style="flex-wrap:wrap;">
+          <b>${esc(p.naam)} transfereren:</b>
+          <select id="transferDestSelect">
+            ${otherClubs.map(c=>`<option value="${esc(c)}">naar ${esc(c)}</option>`).join('')}
+            <option value="__uit__">vertrekt uit de competitie (buitenlandse club / onbekend)</option>
+          </select>
+          <label class="muted">vanaf ronde <input type="number" min="1" max="34" id="transferRondeInput" value="${STATE.huidigeRonde}" style="width:50px;"></label>
+          <button class="btn small primary" data-confirm-transfer="${esc(p.naam)}" data-confirm-transfer-club="${esc(club)}">bevestig transfer</button>
+          <button class="btn small" data-cancel-transfer="1">annuleren</button>
+        </div>
+      </td></tr>`;
+    }
+    return `<tr><td style="border-left:4px solid ${posLineColor(p.positie)};"><span class="badge ${p.positie}">${p.positie}</span></td><td>${esc(p.naam)}</td><td class="muted">${esc(p.afk||'')}</td>
+      <td class="muted">${fmtGeld(p.prijs)}</td>
+      <td><button class="btn small" data-start-transfer="${esc(p.naam)}" data-start-transfer-club="${esc(club)}">transfer / vertrek</button></td></tr>${transferRow}`;
+  }).join('') || '<tr><td colspan="5" class="muted">Geen spelers gevonden.</td></tr>';
+
+  const pn = pendingNewPlayer[club] || {naam:'', positie:'V', prijs:''};
+  const logRows = STATE.transferLog.slice().sort((a,b)=>b.ronde-a.ronde).map((l,i)=>
+    `<tr><td>Ronde ${l.ronde}</td><td>${esc(l.naam)}</td><td class="muted">${esc(l.vanClub)}</td><td>&rarr;</td>
+      <td class="muted">${l.naarClub ? esc(l.naarClub) : '<span class="flag">uit competitie</span>'}</td>
+      <td><span class="close-btn" title="verwijder logregel" data-remove-transferlog="${STATE.transferLog.indexOf(l)}">✕</span></td></tr>`
+  ).join('') || '<tr><td colspan="6" class="muted">Nog geen transfers gelogd.</td></tr>';
+
+  document.getElementById('clubSquadPanel').innerHTML = `
+    <h2 style="margin-top:0;">${esc(club)} <span class="muted small">(${squad.length} spelers)</span></h2>
+    <table><thead><tr><th>Pos</th><th>Speler</th><th>Club-afk.</th><th>Prijs</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="row" style="margin-top:10px;">
+      <input placeholder="Naam nieuwe speler" id="newPlayerNaam" value="${esc(pn.naam)}">
+      <select id="newPlayerPositie">
+        ${['K','V','M','A'].map(p=>`<option value="${p}" ${p===pn.positie?'selected':''}>${POS_NAAM[p]}</option>`).join('')}
+      </select>
+      <input type="number" placeholder="Prijs" id="newPlayerPrijs" value="${esc(pn.prijs)}" style="width:110px;">
+      <button class="btn small primary" id="btnAddPlayerToClub">+ speler toevoegen aan ${esc(club)}</button>
+    </div>
+  `;
+  document.getElementById('btnAddPlayerToClub').addEventListener('click', ()=>{
+    const naam = document.getElementById('newPlayerNaam').value;
+    const positie = document.getElementById('newPlayerPositie').value;
+    const prijs = document.getElementById('newPlayerPrijs').value;
+    addPlayerToClub(club, naam, positie, prijs);
+  });
+
+  document.getElementById('transferLogPanel').innerHTML = `
+    <h3 style="margin-top:0;">Transferhistorie (alle clubs)</h3>
+    <div class="note small">Een transfer verandert alleen bij welke club een speler hoort. Punten die de speler al gescoord heeft (in eerder ingevoerde speelrondes) blijven onveranderd bij de teams die hem toen op basis of reservebank hadden staan &mdash; die koppeling gaat op naam, niet op club.</div>
+    <table><thead><tr><th>Ronde</th><th>Speler</th><th>Van</th><th></th><th>Naar</th><th></th></tr></thead><tbody>${logRows}</tbody></table>
+  `;
+}
+
+document.addEventListener('click', (e)=>{
+  const t = e.target;
+  if(t.dataset.startTransfer!==undefined){ startTransfer(t.dataset.startTransfer, t.dataset.startTransferClub); }
+  if(t.dataset.cancelTransfer!==undefined){ cancelTransfer(); }
+  if(t.dataset.confirmTransfer!==undefined){
+    const naam = t.dataset.confirmTransfer;
+    const vanClub = t.dataset.confirmTransferClub;
+    const naarClub = document.getElementById('transferDestSelect').value;
+    const ronde = document.getElementById('transferRondeInput').value;
+    confirmTransfer(naam, vanClub, naarClub, ronde);
+  }
+  if(t.dataset.removeTransferlog!==undefined){ removeTransferLogEntry(Number(t.dataset.removeTransferlog)); }
+});
+</script>

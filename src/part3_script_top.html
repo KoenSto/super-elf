@@ -1,0 +1,280 @@
+<script>
+/* ============ DATA (spelerslijst en spelregels seizoen 26-27) ============ */
+const DATA = {
+  spelregels: __SPELREGELS_JSON__,
+  clubs: __CLUBS_JSON__,
+  players: __PLAYERS_JSON__,
+  teams: __TEAMS_JSON__,
+  allweeks: __ALLWEEKS_JSON__,
+  tussenstand: __TUSSENSTAND_JSON__
+};
+const STAT_KEYS = ['goal','pen_scoren','pen_missen','pen_stoppen','eigen_doelpunt','assist','geen_tegengoals','geel','geel2','rood'];
+const STAT_LABELS = {goal:'Goal',pen_scoren:'Pen.+',pen_missen:'Pen.-',pen_stoppen:'Pen.stop',eigen_doelpunt:'Eig.doel',assist:'Assist',geen_tegengoals:'Schoon',geel:'Geel',geel2:'2e Geel',rood:'Rood'};
+const POS_LIST = ['K','V','M','A'];
+const POS_NAAM = {K:'Keeper',V:'Verdediger',M:'Middenvelder',A:'Aanvaller'};
+const POS_LINE = {K:'var(--posK)',V:'var(--posV)',M:'var(--posM)',A:'var(--posA)'};
+function posLineColor(pos){ return POS_LINE[pos] || '#cccccc'; }
+
+/* ============ Helpers ============ */
+function matchResultaat(zelf, tegen){
+  if(zelf===null||zelf===undefined||tegen===null||tegen===undefined) return null;
+  if(zelf>tegen) return 'winst';
+  if(zelf===tegen) return 'gelijk';
+  return 'verlies';
+}
+function berekenPunten(positie, resultaat, ev){
+  if(!positie || !resultaat) return 0;
+  const t = DATA.spelregels.puntentabel;
+  let p = (t[resultaat] && t[resultaat][positie]) || 0;
+  STAT_KEYS.forEach(k=>{ p += (Number(ev[k])||0) * ((t[k]&&t[k][positie])||0); });
+  return p;
+}
+function fmtGeld(n){ return '€' + Number(n||0).toLocaleString('nl-NL'); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function playersOfClub(club){ return STATE.players.filter(p=>p.club===club).sort((a,b)=>a.naam.localeCompare(b.naam)); }
+// Max. aantal reguliere wissels is dit seizoen (26-27) rondeafhankelijk: je begint met
+// spelregels.max_wissels en krijgt er na ronde "extra_wissel_na_ronde" nog één extra bij.
+function maxWisselsVoorRonde(ronde){
+  const r = DATA.spelregels;
+  const basis = r.max_wissels || 0;
+  if(r.extra_wissel_na_ronde && Number(ronde) > Number(r.extra_wissel_na_ronde)) return basis + 1;
+  return basis;
+}
+
+/* ============ STATE (localStorage) ============ */
+const STORAGE_KEY = 'superElfDashboard_v1';
+let STATE = null;
+
+function buildSeedRonde(nr){
+  const weekData = DATA.allweeks[String(nr)] || DATA.allweeks[nr] || [];
+  const matches = weekData.map(m => {
+    const mkSpelers = (lijst, rol) => lijst.map(s => ({
+      naam:s.naam, positie:s.positie||'V', rol:rol,
+      goal:s.goal||0, pen_scoren:s.pen_scoren||0, pen_missen:s.pen_missen||0,
+      pen_stoppen:s.pen_stoppen||0, eigen_doelpunt:s.eigen_doelpunt||0, assist:s.assist||0,
+      geen_tegengoals:s.geen_tegengoals||0, geel:s.geel||0, geel2:s.geel2||0, rood:s.rood||0
+    }));
+    return {
+      clubThuis: m.club_thuis || DATA.clubs[0], clubUit: m.club_uit || DATA.clubs[1],
+      uitslagThuis: m.uitslag_thuis, uitslagUit: m.uitslag_uit,
+      spelersThuis: mkSpelers(m.basis_thuis,'basis').concat(mkSpelers(m.invaller_thuis,'invaller')),
+      spelersUit: mkSpelers(m.basis_uit,'basis').concat(mkSpelers(m.invaller_uit,'invaller'))
+    };
+  });
+  return {matches};
+}
+
+const SEED_VERSION = 4; // ophogen bij wijzigingen aan de meegeleverde seizoensdata
+
+function cloneSeedTeams(){
+  return JSON.parse(JSON.stringify(DATA.teams));
+}
+function cloneSeedPlayers(){
+  return JSON.parse(JSON.stringify(DATA.players));
+}
+
+function defaultState(){
+  const rounds = {};
+  for(let i=1;i<=34;i++){ rounds[String(i)] = buildSeedRonde(i); }
+  return {
+    dataVersion: SEED_VERSION,
+    huidigeRonde: 1,
+    rounds: rounds,
+    teams: cloneSeedTeams(),
+    players: cloneSeedPlayers(),
+    wisselLog: [],
+    transferLog: []
+  };
+}
+
+// Vult ontbrekende/lege rondes en ontbrekende team-/spelersdata aan met de meegeleverde seizoensdata,
+// zonder eigen invoer (nieuwe rondes, zelf toegevoegde teams/wissels/spelers/transfers) te overschrijven.
+// Nodig omdat eerdere versies van dit dashboard minder meeleverden: bij een update in de browser
+// blijft de oude (onvolledige) opslag anders "geldig" lijken.
+function migreerState(state){
+  if(!state.rounds) state.rounds = {};
+  for(let i=1;i<=34;i++){
+    const key = String(i);
+    const bestaand = state.rounds[key];
+    if(!bestaand || !Array.isArray(bestaand.matches) || bestaand.matches.length===0){
+      state.rounds[key] = buildSeedRonde(i);
+    }
+  }
+  if(!state.teams || Object.keys(state.teams).length===0){
+    state.teams = cloneSeedTeams();
+  }
+  if(!state.players || state.players.length===0){
+    state.players = cloneSeedPlayers();
+  }
+  if(!state.wisselLog) state.wisselLog = [];
+  if(!state.transferLog) state.transferLog = [];
+  state.dataVersion = SEED_VERSION;
+  return state;
+}
+
+let fileHandle = null;
+let pendingFileHandle = null;
+let fileWriteTimer = null;
+
+function readEmbeddedState(){
+  try{
+    const el = document.getElementById('embeddedStateJSON');
+    if(!el) return null;
+    const txt = el.textContent.trim();
+    if(!txt || txt === 'null') return null;
+    return JSON.parse(txt);
+  }catch(e){ console.warn('kon ingebouwde bestandsdata niet lezen', e); return null; }
+}
+function readLocalStorageState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ console.warn('kon opgeslagen data niet laden', e); return null; }
+}
+function normaliseState(state){
+  if(!state) return null;
+  if(state.dataVersion !== SEED_VERSION) state = migreerState(state);
+  return state;
+}
+function loadState(){
+  const embedded = normaliseState(readEmbeddedState());
+  const local = normaliseState(readLocalStorageState());
+  // De bron met de meest recente savedAt-tijdstempel wint, zodat een bestand dat je van
+  // iemand anders krijgt (met ingebouwde data) niet per ongeluk overschreven wordt door
+  // oudere data die nog in jouw browseropslag van een eerder bestand met dezelfde naam staat,
+  // en omgekeerd: eigen recentere wijzigingen gaan niet verloren t.o.v. een ouder bestand.
+  let chosen;
+  if(embedded && local){ chosen = (local.savedAt||0) > (embedded.savedAt||0) ? local : embedded; }
+  else { chosen = embedded || local; }
+  if(!chosen) chosen = defaultState();
+  return chosen;
+}
+function saveState(){
+  STATE.savedAt = Date.now();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+  scheduleFileWrite();
+  pushToFirebase();
+}
+function scheduleFileWrite(){
+  if(!fileHandle) return;
+  if(fileWriteTimer) clearTimeout(fileWriteTimer);
+  fileWriteTimer = setTimeout(writeToConnectedFile, 600);
+}
+function updateFileConnStatus(){
+  const short = document.getElementById('fileConnStatus');
+  const long = document.getElementById('fileConnStatusLong');
+  if(fileHandle){
+    if(short){ short.textContent = '📁 Gekoppeld ✓ (' + (fileHandle.name||'bestand') + ')'; short.classList.add('primary'); }
+    if(long) long.textContent = 'Gekoppeld aan "' + (fileHandle.name||'bestand') + '" — wijzigingen worden automatisch in dit bestand opgeslagen.';
+  } else if(pendingFileHandle){
+    if(short){ short.textContent = '📁 Bevestig koppeling (1 klik)'; short.classList.add('primary'); }
+    if(long) long.textContent = 'Dit bestand was al eens gekoppeld — klik op de knop om dat met één klik te bevestigen (geen nieuwe bestandskiezer nodig).';
+  } else {
+    if(short){ short.textContent = '📁 Bestand koppelen'; short.classList.remove('primary'); }
+    if(long) long.textContent = 'Nog niet gekoppeld — wijzigingen worden nu alleen lokaal (browseropslag) bewaard.';
+  }
+}
+/* Onthoud de bestandskoppeling tussen sessies via IndexedDB, zodat je na het heropenen
+   van dit bestand niet steeds opnieuw een bestandskiezer hoeft te doorlopen. Chrome/Edge
+   kunnen de toestemming voor eenzelfde bestand onthouden; is dat niet (meer) het geval,
+   dan volstaat één klik op de knop bovenaan (in plaats van opnieuw het bestand te zoeken). */
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open('superElfDashboardDB', 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore('handles'); };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+async function idbSetHandle(handle){
+  try{
+    const db = await idbOpen();
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction('handles','readwrite');
+      tx.objectStore('handles').put(handle, 'fileHandle');
+      tx.oncomplete = resolve; tx.onerror = ()=>reject(tx.error);
+    });
+  }catch(e){ console.warn('kon bestandskoppeling niet onthouden', e); }
+}
+async function idbGetHandle(){
+  try{
+    const db = await idbOpen();
+    return await new Promise((resolve,reject)=>{
+      const tx = db.transaction('handles','readonly');
+      const req = tx.objectStore('handles').get('fileHandle');
+      req.onsuccess = ()=>resolve(req.result||null);
+      req.onerror = ()=>reject(req.error);
+    });
+  }catch(e){ return null; }
+}
+// Bij het laden van de pagina: kijk of er een eerder gekoppeld bestand bekend is, en of de
+// browser de schrijftoestemming daarvoor nog herkent zonder nieuwe bestandskiezer.
+async function proberenAutomatischTeHerkoppelen(){
+  if(!window.showOpenFilePicker) return;
+  const handle = await idbGetHandle();
+  if(!handle) return;
+  try{
+    const perm = await handle.queryPermission({mode:'readwrite'});
+    if(perm === 'granted'){
+      fileHandle = handle;
+      updateFileConnStatus();
+    } else {
+      // Toestemming is niet (meer) actief te herstellen zonder gebruikersactie; onthoud de
+      // handle wel zodat de koppelknop 'm eerst probeert te hergebruiken i.p.v. direct een
+      // nieuwe bestandskiezer te openen.
+      pendingFileHandle = handle;
+      updateFileConnStatus();
+    }
+  }catch(e){ /* handle niet meer geldig (bestand verplaatst/verwijderd) */ }
+}
+async function connectFile(){
+  if(!window.showOpenFilePicker){
+    alert('Automatisch opslaan naar dit bestand wordt niet ondersteund in deze browser. Gebruik Chrome of Edge, of gebruik de handmatige export/import onder Data.');
+    return false;
+  }
+  try{
+    if(pendingFileHandle){
+      const perm = await pendingFileHandle.requestPermission({mode:'readwrite'});
+      if(perm === 'granted'){
+        fileHandle = pendingFileHandle;
+        pendingFileHandle = null;
+        updateFileConnStatus();
+        await writeToConnectedFile();
+        return true;
+      }
+    }
+    const [handle] = await window.showOpenFilePicker({
+      types: [{description:'Super Elf Dashboard', accept:{'text/html':['.html','.htm']}}]
+    });
+    fileHandle = handle;
+    pendingFileHandle = null;
+    updateFileConnStatus();
+    await writeToConnectedFile();
+    await idbSetHandle(handle);
+    return true;
+  }catch(e){
+    if(e.name !== 'AbortError') console.warn('kon bestand niet koppelen', e);
+    return false;
+  }
+}
+async function writeToConnectedFile(){
+  if(!fileHandle) return;
+  try{
+    const stateScript = document.getElementById('embeddedStateJSON');
+    if(stateScript) stateScript.textContent = JSON.stringify(STATE).replace(/</g, '\u003c');
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    const writable = await fileHandle.createWritable();
+    await writable.write(html);
+    await writable.close();
+    updateFileConnStatus();
+  }catch(e){
+    console.warn('kon niet automatisch opslaan naar bestand', e);
+    const long = document.getElementById('fileConnStatusLong');
+    if(long) long.textContent = 'Opslaan naar bestand mislukt: ' + (e.message||e);
+  }
+}
+function ensureRonde(nr){
+  if(!STATE.rounds[nr]) STATE.rounds[nr] = {matches:[]};
+  return STATE.rounds[nr];
+}
+</script>
