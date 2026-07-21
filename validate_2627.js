@@ -87,6 +87,17 @@ async function main(){
   console.log('17) navigatievolgorde klopt (Tussenstand..Data):', juisteVolgorde);
   console.log('18) Tussenstand-knop heeft class="active":', /data-tab="stand" class="active"/.test(html));
 
+  console.log('19) geen los positie-dropdown meer in speelronde-invoer:', !/data-field="positie"/.test(html));
+  console.log('20) evt-head kolomkoppen hebben nowrap/ellipsis CSS:', /\.evt-head span\{[^}]*white-space:nowrap/.test(html));
+
+  const testClub = get(sb, 'DATA.clubs[0]');
+  const testSpeler = get(sb, `STATE.players.find(p=>p.club===${JSON.stringify(testClub)})`);
+  const positieMatch = get(sb, `(function(){
+    const bekend = playersOfClub(${JSON.stringify(testClub)}).find(p => p.naam.toLowerCase() === ${JSON.stringify(testSpeler.naam)}.trim().toLowerCase());
+    return bekend && bekend.positie === ${JSON.stringify(testSpeler.positie)};
+  })()`);
+  console.log('21) positie is opzoekbaar via playersOfClub op naam:', positieMatch);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
