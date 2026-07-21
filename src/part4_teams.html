@@ -199,16 +199,15 @@ function initTeamsTab(){
 function renderTeamsGrid(){
   const q = (document.getElementById('teamSearch').value||'').toLowerCase();
   const grid = document.getElementById('teamsGrid');
-  const sorted = [...TEAM_LIST].sort((a,b)=>(origineelTotaal(b)||0)-(origineelTotaal(a)||0));
+  const sorted = [...TEAM_LIST].sort((a,b)=>(seizoenTotaal(b)||0)-(seizoenTotaal(a)||0));
   grid.innerHTML = '';
   sorted.forEach((team, idx)=>{
     if(q && !(team.teamnaam.toLowerCase().includes(q) || team.speler.toLowerCase().includes(q))) return;
     const card = document.createElement('div');
     card.className = 'team-card';
     card.dataset.teamKey = team.key;
-    const isCustom = team.key.startsWith('custom_');
-    card.innerHTML = `<div class="rank">${isCustom?'<span class="flag">nieuw</span>':'#'+(idx+1)}</div>
-      <div class="tot">${origineelTotaal(team)??'-'}</div>
+    card.innerHTML = `<div class="rank">#${idx+1}</div>
+      <div class="tot">${seizoenTotaal(team)??'-'}</div>
       <div class="name">${esc(team.teamnaam)}</div>
       <div class="sub">${esc(team.speler)}</div>`;
     card.addEventListener('click', ()=>{ selectedTeamKey = team.key; renderTeamDetail(); document.getElementById('teamDetail').scrollIntoView({behavior:'smooth'}); });
@@ -234,8 +233,6 @@ function renderTeamDetail(){
   const formatie = computeFormatie(team.basis);
   const ronde = STATE.huidigeRonde;
   const live = liveTotaalRonde(team, ronde);
-  const orig = origineelRonde(team, ronde);
-  const diff = (orig!==null) ? (live.total - orig) : null;
 
   const posOrder = {K:0,V:1,M:2,A:3};
   const basisSorted = team.basis.map((b,i)=>({...b,_idx:i})).sort((a,b)=>posOrder[a.positie]-posOrder[b.positie]);
@@ -292,12 +289,10 @@ function renderTeamDetail(){
       <span class="pill">Resterend (basis): <b>${fmtGeld(budget.resterend)}</b></span>
       <span class="pill">Waarde reservebank: <b>${fmtGeld(budget.wisselsGebruikt)}</b> <span class="muted small">(apart budget bij wissel)</span></span>
       <span class="pill">Wissels: <b>${regulierGebruikt}/${maxWisselsVoorRonde(ronde)}</b> regulier${vrijGebruikt>0?` + <b>${vrijGebruikt}</b> vrij (transfer)`:''}</span>
-      <span class="pill">Seizoenstotaal (origineel): <b>${origineelTotaal(team)??'-'}</b></span>
+      <span class="pill">Seizoenstotaal: <b>${seizoenTotaal(team)??'-'}</b></span>
     </div>
     <div class="note">
       Ronde ${ronde}: met de <b>huidige selectie</b> toegepast op de wedstrijdgegevens van die ronde komt dit team op <b class="pts">${live.total}</b> punten (${live.gevonden}/${team.basis.length+team.wissels.length} spelers gevonden).
-      ${orig!==null ? `Het <b>origineel</b> (zoals destijds vastgelegd) was <b>${orig}</b>${diff!==null ? ` (verschil: <b class="${diff===0?'diffzero':'diffnonzero'}">${diff>0?'+':''}${diff}</b>)` : ''}.` : ''}
-      ${diff!==0 && diff!==null ? '<br><span class="small">Dit team heeft in de loop van het seizoen minstens één keer gewisseld (basis of reservebank). Het 25-26 bestand legt niet vast wanneer &mdash; daardoor kan de huidige selectie voor deze specifieke ronde afwijken van de selectie die destijds echt gold. Vul je zelf nieuwe wissels of rondes in, dan komt live altijd overeen met wat je hebt ingevoerd.</span>' : ''}
     </div>
     <h3>Basisopstelling</h3>
     <table><thead><tr><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Status</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${basisRows}</tbody></table>
