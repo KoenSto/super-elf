@@ -24,13 +24,13 @@
   <span id="loginUserBadge" class="small muted" style="margin-left:8px;"></span>
   <button id="btnLogout" class="btn" style="margin-left:6px;font-size:12px;padding:6px 10px;" title="Uitloggen">Uitloggen</button>
   <nav id="mainnav">
-    <button data-tab="ronde" class="active">Speelronde</button>
-    <button data-tab="teams">Teams</button>
-    <button data-tab="stand">Tussenstand</button>
-    <button data-tab="clubs">Voetbalploegen</button>
+    <button data-tab="stand" class="active">Tussenstand</button>
     <button data-tab="spelers">Spelersdatabase</button>
+    <button data-tab="clubs">Voetbalploegen</button>
+    <button data-tab="teams">Teams</button>
     <button data-tab="regels">Spelregels</button>
-    <button data-tab="data">Data</button>
+    <button data-tab="ronde">Speelronde</button>
+    <button data-tab="data" id="navDataBtn" style="display:none;">Data</button>
   </nav>
 </header>
 <main>
@@ -39,23 +39,47 @@
   Dit is het dashboard voor seizoen <b>2026-2027</b>: de nieuwe spelerslijst (18 clubs) staat klaar onder Spelersdatabase, maar er zijn nog geen teams, wedstrijden of uitslagen ingevuld. Maak bij Teams de teams van jou en Frank aan, en vul per speelronde bij Speelronde de clubs, uitslagen en spelersstatistieken in &mdash; de puntentelling en wisselregels (incl. de extra wissel na ronde 17) rekenen automatisch mee.
 </div>
 
-<section id="tab-ronde" class="tabcontent">
+<section id="tab-stand" class="tabcontent">
   <div class="panel">
-    <div class="row" style="justify-content:space-between;">
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;">
+      <h2 style="margin:0;">Tussenstand</h2>
       <div class="row">
-        <label>Speelronde:</label>
-        <select id="rondeSelect"></select>
-        <button class="btn" id="btnPrevRonde">&larr;</button>
-        <button class="btn" id="btnNextRonde">&rarr;</button>
-        <span class="muted small" id="rondeStatus"></span>
-      </div>
-      <div class="row">
-        <button class="btn" id="btnAddMatch">+ Wedstrijd toevoegen</button>
-        <span class="small muted">Wijzigingen worden automatisch opgeslagen &mdash; koppel het bestand bovenaan om ze ook automatisch in het bestand zelf te bewaren.</span>
+        <label class="small muted">Ronde:</label>
+        <select id="standRondeSelect"></select>
       </div>
     </div>
+    <div class="note">De kolom <b>ronde (live)</b> berekent voor de gekozen ronde wat de <b>huidige selectie</b> van een team zou scoren met de wedstrijdgegevens van die ronde. De kolom <b>ronde (origineel)</b> is wat er destijds echt is vastgelegd. Voor teams die tijdens het seizoen hebben gewisseld (basis of reservebank) wijken deze structureel af, omdat het bronbestand niet vastlegt wanneer een wissel is doorgevoerd &mdash; dat is precies het verbeterpunt dat dit dashboard oplost voor nieuwe rondes/wissels. Klik op een kolomkop om te sorteren.</div>
+    <div id="standTable"></div>
   </div>
-  <div id="matchesContainer"></div>
+</section>
+
+<section id="tab-spelers" class="tabcontent" style="display:none;">
+  <div class="panel">
+    <div class="row">
+      <select id="spelerClubFilter"><option value="">Alle clubs</option></select>
+      <select id="spelerPosFilter">
+        <option value="">Alle posities</option>
+        <option value="K">Keeper</option><option value="V">Verdediger</option>
+        <option value="M">Middenvelder</option><option value="A">Aanvaller</option>
+      </select>
+      <input id="spelerSearch" placeholder="Zoek speler...">
+    </div>
+  </div>
+  <div class="panel"><div id="spelersTable"></div></div>
+</section>
+
+<section id="tab-clubs" class="tabcontent" style="display:none;">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;">
+      <div class="row">
+        <label class="small muted">Club:</label>
+        <select id="clubTeamSelect"></select>
+      </div>
+      <input id="clubSearch" placeholder="Zoek speler binnen deze club...">
+    </div>
+  </div>
+  <div class="panel" id="clubSquadPanel"></div>
+  <div class="panel" id="transferLogPanel"></div>
 </section>
 
 <section id="tab-teams" class="tabcontent" style="display:none;">
@@ -77,51 +101,27 @@
   <div id="teamDetail"></div>
 </section>
 
-<section id="tab-stand" class="tabcontent" style="display:none;">
-  <div class="panel">
-    <div class="row" style="justify-content:space-between;flex-wrap:wrap;">
-      <h2 style="margin:0;">Tussenstand</h2>
-      <div class="row">
-        <label class="small muted">Ronde:</label>
-        <select id="standRondeSelect"></select>
-      </div>
-    </div>
-    <div class="note">De kolom <b>ronde (live)</b> berekent voor de gekozen ronde wat de <b>huidige selectie</b> van een team zou scoren met de wedstrijdgegevens van die ronde. De kolom <b>ronde (origineel)</b> is wat er destijds echt is vastgelegd. Voor teams die tijdens het seizoen hebben gewisseld (basis of reservebank) wijken deze structureel af, omdat het bronbestand niet vastlegt wanneer een wissel is doorgevoerd &mdash; dat is precies het verbeterpunt dat dit dashboard oplost voor nieuwe rondes/wissels. Klik op een kolomkop om te sorteren.</div>
-    <div id="standTable"></div>
-  </div>
-</section>
-
-<section id="tab-clubs" class="tabcontent" style="display:none;">
-  <div class="panel">
-    <div class="row" style="justify-content:space-between;flex-wrap:wrap;">
-      <div class="row">
-        <label class="small muted">Club:</label>
-        <select id="clubTeamSelect"></select>
-      </div>
-      <input id="clubSearch" placeholder="Zoek speler binnen deze club...">
-    </div>
-  </div>
-  <div class="panel" id="clubSquadPanel"></div>
-  <div class="panel" id="transferLogPanel"></div>
-</section>
-
-<section id="tab-spelers" class="tabcontent" style="display:none;">
-  <div class="panel">
-    <div class="row">
-      <select id="spelerClubFilter"><option value="">Alle clubs</option></select>
-      <select id="spelerPosFilter">
-        <option value="">Alle posities</option>
-        <option value="K">Keeper</option><option value="V">Verdediger</option>
-        <option value="M">Middenvelder</option><option value="A">Aanvaller</option>
-      </select>
-      <input id="spelerSearch" placeholder="Zoek speler...">
-    </div>
-  </div>
-  <div class="panel"><div id="spelersTable"></div></div>
-</section>
-
 <section id="tab-regels" class="tabcontent" style="display:none;">
   <div class="panel" id="regelsPanel"></div>
+</section>
+
+<section id="tab-ronde" class="tabcontent" style="display:none;">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;">
+      <div class="row">
+        <label>Speelronde:</label>
+        <select id="rondeSelect"></select>
+        <button class="btn" id="btnPrevRonde">&larr;</button>
+        <button class="btn" id="btnNextRonde">&rarr;</button>
+        <span class="muted small" id="rondeStatus"></span>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnAddMatch">+ Wedstrijd toevoegen</button>
+        <span class="small muted">Wijzigingen worden automatisch opgeslagen &mdash; koppel het bestand bovenaan om ze ook automatisch in het bestand zelf te bewaren.</span>
+      </div>
+    </div>
+  </div>
+  <div id="matchesContainer"></div>
 </section>
 
 <section id="tab-data" class="tabcontent" style="display:none;">

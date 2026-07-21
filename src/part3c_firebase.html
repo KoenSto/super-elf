@@ -133,6 +133,18 @@ async function startAppAfterAuth(){
   }
   const badge = document.getElementById('loginUserBadge');
   if(badge && currentUser) badge.textContent = '👤 ' + emailToUsername(currentUser.email);
+  toonDataTabAlleenVoorEditors();
+}
+
+// Het Data-tabblad (bestand koppelen, cloud-status, backup/reset) is alleen relevant voor de
+// twee schrijfgerechtigde accounts (koen/Frank) — toekomstige kijker-accounts (alleen-lezen)
+// hebben hier niets aan en kunnen sowieso niet opslaan, dus houden we deze tab verborgen voor iedereen anders.
+const EDITOR_EMAILS = ['koen@super-elf.local', 'frank@super-elf.local'];
+function toonDataTabAlleenVoorEditors(){
+  const btn = document.getElementById('navDataBtn');
+  if(!btn) return;
+  const magSchrijven = currentUser && EDITOR_EMAILS.includes(String(currentUser.email||'').toLowerCase());
+  btn.style.display = magSchrijven ? '' : 'none';
 }
 
 async function doLogin(username, password){
