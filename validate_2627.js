@@ -81,7 +81,7 @@ async function main(){
 
   console.log('15) tab-stand is standaard zichtbaar (geen inline display:none):', /id="tab-stand" class="tabcontent">/.test(html));
   console.log('16) tab-ronde is standaard verborgen:', /id="tab-ronde" class="tabcontent" style="display:none;"/.test(html));
-  const navOrder = ['stand','spelers','clubs','teams','stats','regels','ronde','data'];
+  const navOrder = ['stand','spelers','clubs','teams','stats','beker','regels','ronde','data'];
   const idxs = navOrder.map(t => html.indexOf(`data-tab="${t}"`));
   const juisteVolgorde = idxs.every((v,i)=> i===0 || v > idxs[i-1]);
   console.log('17) navigatievolgorde klopt (Tussenstand..Data):', juisteVolgorde);
@@ -232,7 +232,7 @@ async function main(){
   console.log('41) clean sheet wordt automatisch weer weggehaald zodra het team een tegengoal krijgt:', geenCleanSheetBijTegengoalCheck);
 
   // Tabblad Statistieken: nav-knop, sectie en de aggregatiefuncties die de top-10 overzichten voeden.
-  console.log('42) nav-knop Statistieken staat tussen Teams en Spelregels:', /data-tab="teams">Teams<\/button>\s*<button data-tab="stats">/.test(html) && /data-tab="stats">Statistieken<\/button>\s*<button data-tab="regels">/.test(html));
+  console.log('42) nav-knop Statistieken staat tussen Teams en Beker/Spelregels:', /data-tab="teams">Teams<\/button>\s*<button data-tab="stats">/.test(html) && /data-tab="stats">Statistieken<\/button>\s*<button data-tab="beker">/.test(html));
   console.log('43) tab-stats is standaard verborgen:', /id="tab-stats" class="tabcontent" style="display:none;"/.test(html));
 
   run(sb, `
@@ -272,6 +272,86 @@ async function main(){
   })()`);
   console.log('46) speler van de ronde bevat de juiste (hoogst scorende) speler voor rondes 20 en 21:', svdrCheck);
   console.log('47) statsContainer wordt gevuld na renderStats():', get(sb, `(function(){ renderStats(); return document.getElementById('statsContainer').innerHTML.includes('Topscorers'); })()`));
+
+  // Beker: bracket-grootte/rondenummers, loting+doorstroom, byes, en tiebreak op budget.
+  console.log('48) bepaalBekerRondeNummers(10) -> bracket 16, rondes 5/10/15/20:', get(sb, `(function(){
+    const r = bepaalBekerRondeNummers(10);
+    return r.bracketSize===16 && JSON.stringify(r.rondeNummers)===JSON.stringify([5,10,15,20]);
+  })()`));
+  console.log('49) bepaalBekerRondeNummers(64) -> bracket 64, finale in ronde 30:', get(sb, `(function(){
+    const r = bepaalBekerRondeNummers(64);
+    return r.bracketSize===64 && JSON.stringify(r.rondeNummers)===JSON.stringify([5,10,15,20,25,30]);
+  })()`));
+  console.log('50) bepaalBekerRondeNummers(70) -> bracket 128, finale verkort naar ronde 34:', get(sb, `(function(){
+    const r = bepaalBekerRondeNummers(70);
+    return r.bracketSize===128 && JSON.stringify(r.rondeNummers)===JSON.stringify([5,10,15,20,25,30,34]);
+  })()`));
+
+  run(sb, `
+    STATE.teams['beker_t1'] = {speler:'Koen', teamnaam:'Beker Team 1', basis:[{naam:'BekerSpelerT1', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    STATE.teams['beker_t2'] = {speler:'Frank', teamnaam:'Beker Team 2', basis:[{naam:'BekerSpelerT2', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    STATE.teams['beker_t3'] = {speler:'Koen', teamnaam:'Beker Team 3', basis:[{naam:'BekerSpelerT3', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    STATE.teams['beker_t4'] = {speler:'Frank', teamnaam:'Beker Team 4', basis:[{naam:'BekerSpelerT4', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    buildTeamList();
+    // Ronde 5 (bekerronde 1): T1 verslaat T2 (3 goals om 0) en T4 verslaat T3 (2 goals om 0).
+    const rd5 = ensureRonde(5);
+    rd5.matches = [{
+      clubThuis:'BekerClubX', clubUit:'BekerClubY', uitslagThuis:0, uitslagUit:0,
+      spelersThuis:[{naam:'BekerSpelerT1', positie:'A', goal:3, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+      spelersUit:[{naam:'BekerSpelerT2', positie:'A', goal:0, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}]
+    }, {
+      clubThuis:'BekerClubP', clubUit:'BekerClubQ', uitslagThuis:0, uitslagUit:0,
+      spelersThuis:[{naam:'BekerSpelerT3', positie:'A', goal:0, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+      spelersUit:[{naam:'BekerSpelerT4', positie:'A', goal:2, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}]
+    }];
+    syncUitslag(rd5.matches[0]);
+    syncUitslag(rd5.matches[1]);
+    // Ronde 10 (bekerronde 2, de "finale" van deze mini-bracket van 4): T1 verslaat T4.
+    const rd10 = ensureRonde(10);
+    rd10.matches = [{
+      clubThuis:'BekerClubX', clubUit:'BekerClubZ', uitslagThuis:0, uitslagUit:0,
+      spelersThuis:[{naam:'BekerSpelerT1', positie:'A', goal:2, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+      spelersUit:[{naam:'BekerSpelerT4', positie:'A', goal:0, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}]
+    }];
+    syncUitslag(rd10.matches[0]);
+    STATE.beker = {drawn:true, slots:['beker_t1','beker_t2','beker_t3','beker_t4'], rondeNummers:[5,10], getrokkenOp:'test', aantalTeamsBijLoting:4};
+  `);
+  const bekerSchemaCheck = get(sb, `(function(){
+    const {rondes, kampioenKey} = berekenBekerSchema();
+    const r1 = rondes[0], r2 = rondes[1];
+    const m1 = r1.wedstrijden[0]; // T1 vs T2 -> T1 wint op score
+    const m2 = r1.wedstrijden[1]; // T3 vs T4 -> T4 heeft een bye (T3 heeft geen data in ronde 5 dus dat zou 0-0 zijn... )
+    return m1.winnaarKey==='beker_t1' && m1.status==='gespeeld' && kampioenKey==='beker_t1';
+  })()`);
+  console.log('51) berekenBekerSchema laat de winnaar op rondescore correct doorstromen naar de volgende bekerronde:', bekerSchemaCheck);
+
+  run(sb, `
+    STATE.beker.slots = ['beker_t1','beker_t2','beker_t3', null];
+  `);
+  const byeCheck = get(sb, `(function(){
+    const {rondes} = berekenBekerSchema();
+    const byeWedstrijd = rondes[0].wedstrijden[1]; // T3 vs null
+    return byeWedstrijd.teamA==='beker_t3' && byeWedstrijd.teamB===null && byeWedstrijd.status==='bye' && byeWedstrijd.winnaarKey==='beker_t3';
+  })()`);
+  console.log('52) een bye laat het team automatisch doorgaan zonder wedstrijd:', byeCheck);
+
+  run(sb, `
+    STATE.teams['beker_tiebreak_goedkoop'] = {speler:'Koen', teamnaam:'Tiebreak Goedkoop', basis:[{naam:'NietBestaandeSpelerA', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    STATE.teams['beker_tiebreak_duur'] = {speler:'Frank', teamnaam:'Tiebreak Duur', basis:[{naam:'NietBestaandeSpelerB', positie:'A', prijs:900}], wissels:[], totaal_weken:{}};
+    buildTeamList();
+  `);
+  const tiebreakCheck = get(sb, `(function(){
+    // Beide spelers komen in geen enkele wedstrijd van ronde 5 voor -> score 0-0 -> tiebreak op budget.
+    const res = bekerWedstrijdUitslag('beker_tiebreak_goedkoop', 'beker_tiebreak_duur', 5);
+    return res.status==='gelijk_tiebreak' && res.winnaarKey==='beker_tiebreak_goedkoop';
+  })()`);
+  console.log('53) bij gelijke rondescore wint het team met het laagste spelersbudget:', tiebreakCheck);
+
+  const nogSpelenCheck = get(sb, `(function(){
+    const res = bekerWedstrijdUitslag('beker_t1', 'beker_t2', 33); // ronde 33 heeft nog geen spelersdata
+    return res.status==='nog_spelen' && res.winnaarKey===null;
+  })()`);
+  console.log('54) een bekerwedstrijd in een nog niet ingevulde speelronde blijft \'nog te spelen\':', nogSpelenCheck);
 
   console.log('ALLES OK');
 }
