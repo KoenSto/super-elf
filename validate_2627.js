@@ -415,6 +415,61 @@ async function main(){
   run(sb, "addTeam('Frank','Team Frank');");
   console.log('66) koen (editor) kan nog steeds gewoon een team aanmaken (bestaand gedrag blijft werken):', get(sb,'Object.keys(STATE.teams).length')===aantalTeamsVoor66+1);
 
+  // "Bestand koppelen" (lokale auto-save naar bestand) is verwijderd nu alles via Firebase
+  // gedeeld wordt: knop, Data-tab paneel en onderliggende functies mogen nergens meer voorkomen.
+  console.log('67) knop "Bestand koppelen" staat niet meer in de header:', !/id="fileConnStatus"/.test(html));
+  console.log('68) "Automatisch opslaan naar dit bestand"-paneel staat niet meer bij Data:', !/btnConnectFile/.test(html) && !/fileConnStatusLong/.test(html));
+  console.log('69) connectFile/writeToConnectedFile bestaan niet meer:', get(sb,"typeof connectFile")==='undefined' && get(sb,"typeof writeToConnectedFile")==='undefined');
+  console.log('70) saveState() verwijst niet meer naar scheduleFileWrite:', get(sb,"typeof scheduleFileWrite")==='undefined');
+
+  // Print ronde-uitslag: knop bij Tussenstand, en printRondeUitslag() zet de juiste ranglijst
+  // (incl. winnaar/gedeelde winst) klaar in het verborgen print-only element.
+  console.log('71) knop "Print ronde-uitslag" staat bij Tussenstand naast de rondeselectie:', /id="standRondeSelect"><\/select>\s*<button class="btn" id="btnPrintRonde"/.test(html));
+  run(sb, "window.print = function(){ window.__printAangeroepen = true; };");
+  run(sb, `
+    STATE.teams['print_test_a'] = {speler:'Koen', teamnaam:'Print Test A', basis:[{naam:'PrintSpelerA', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    STATE.teams['print_test_b'] = {speler:'Frank', teamnaam:'Print Test B', basis:[{naam:'PrintSpelerB', positie:'A', prijs:100}], wissels:[], totaal_weken:{}};
+    buildTeamList();
+    const rd28 = ensureRonde(28);
+    rd28.matches = [{
+      clubThuis:'PrintClubX', clubUit:'PrintClubY', uitslagThuis:0, uitslagUit:0,
+      spelersThuis:[{naam:'PrintSpelerA', positie:'A', goal:3, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+      spelersUit:[{naam:'PrintSpelerB', positie:'A', goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}]
+    }];
+    syncUitslag(rd28.matches[0]);
+    standRonde = 28;
+    printRondeUitslag();
+  `);
+  const printSoloWinnaarCheck = get(sb, `(function(){
+    const h = document.getElementById('printRondeUitslag').innerHTML;
+    return h.includes('Winnaar speelronde 28') && h.includes('Print Test A') && window.__printAangeroepen===true;
+  })()`);
+  console.log('72) printRondeUitslag() wijst bij een duidelijk verschil de juiste winnaar aan en roept window.print() aan:', printSoloWinnaarCheck);
+  run(sb, `
+    window.__printAangeroepen = false;
+    const rd29 = ensureRonde(29);
+    // Twee losse wedstrijden met exact dezelfde spelersstatistiek (1 goal, verder niets, allebei
+    // een "winst"-resultaat) leveren gegarandeerd evenveel fantasypunten op, ongeacht de precieze
+    // puntentabel — dat maakt dit een robuuste, tabel-onafhankelijke test voor een gedeelde winst.
+    rd29.matches = [
+      {clubThuis:'PrintClubX', clubUit:'PrintClubY', uitslagThuis:0, uitslagUit:0,
+        spelersThuis:[{naam:'PrintSpelerA', positie:'A', goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+        spelersUit:[]},
+      {clubThuis:'PrintClubP', clubUit:'PrintClubQ', uitslagThuis:0, uitslagUit:0,
+        spelersThuis:[{naam:'PrintSpelerB', positie:'A', goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}],
+        spelersUit:[]}
+    ];
+    syncUitslag(rd29.matches[0]);
+    syncUitslag(rd29.matches[1]);
+    standRonde = 29;
+    printRondeUitslag();
+  `);
+  const printGedeeldCheck = get(sb, `(function(){
+    const h = document.getElementById('printRondeUitslag').innerHTML;
+    return h.includes('Gedeelde winst') && h.includes('Print Test A') && h.includes('Print Test B');
+  })()`);
+  console.log('73) printRondeUitslag() herkent een gedeelde winst bij een gelijke rondescore:', printGedeeldCheck);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
