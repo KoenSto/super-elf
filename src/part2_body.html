@@ -28,6 +28,7 @@
     <button data-tab="spelers">Spelersdatabase</button>
     <button data-tab="clubs">Voetbalploegen</button>
     <button data-tab="teams">Teams</button>
+    <button data-tab="stats">Statistieken</button>
     <button data-tab="regels">Spelregels</button>
     <button data-tab="ronde">Speelronde</button>
     <button data-tab="data" id="navDataBtn" style="display:none;">Data</button>
@@ -99,6 +100,14 @@
   </div>
   <div id="teamsGrid" class="card-grid"></div>
   <div id="teamDetail"></div>
+</section>
+
+<section id="tab-stats" class="tabcontent" style="display:none;">
+  <div class="panel">
+    <h2 style="margin:0;">Statistieken</h2>
+    <div class="note">Deze overzichten worden automatisch berekend uit alle spelersstatistieken die tot nu toe bij Speelronde zijn ingevuld &mdash; over alle clubs en speelrondes heen, los van welk team (van jou of Frank) een speler op enig moment had. Nog niets ingevuld bij Speelronde? Dan blijven de lijsten hieronder leeg.</div>
+  </div>
+  <div id="statsContainer"></div>
 </section>
 
 <section id="tab-regels" class="tabcontent" style="display:none;">

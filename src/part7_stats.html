@@ -1,0 +1,122 @@
+<script>
+/* ============ TAB: Statistieken ============ */
+// Alles hier is afgeleid uit STATE.rounds (dezelfde data als het tabblad Speelronde) — er wordt
+// niets los bijgehouden, dus dit tabblad kan nooit uit de pas lopen met de ingevulde wedstrijden.
+
+// Eén rij per speler per wedstrijd waarin hij voorkomt (met naam gevuld), inclusief het aantal
+// fantasy-punten dat die speler in die wedstrijd scoorde volgens de puntentabel.
+function alleSpelerBeurten(){
+  const out = [];
+  for(let r=1;r<=34;r++){
+    const rd = STATE.rounds[String(r)];
+    if(!rd) continue;
+    rd.matches.forEach(m=>{
+      const resThuis = matchResultaat(m.uitslagThuis, m.uitslagUit);
+      const resUit = matchResultaat(m.uitslagUit, m.uitslagThuis);
+      m.spelersThuis.forEach(sp=>{
+        if(!sp.naam) return;
+        out.push({ronde:r, club:m.clubThuis, naam:sp.naam, positie:sp.positie, sp, punten: berekenPunten(sp.positie, resThuis, sp)});
+      });
+      m.spelersUit.forEach(sp=>{
+        if(!sp.naam) return;
+        out.push({ronde:r, club:m.clubUit, naam:sp.naam, positie:sp.positie, sp, punten: berekenPunten(sp.positie, resUit, sp)});
+      });
+    });
+  }
+  return out;
+}
+
+// Een speler kan tussentijds getransfereerd zijn; voor weergave tonen we de meest actuele club
+// uit de spelersdatabase (STATE.players), met de club uit de wedstrijddata als terugval als de
+// speler daar niet (meer) instaat (bijv. na vertrek uit de competitie).
+function huidigeClubVan(naam, terugvalClub){
+  const p = STATE.players.find(pl=>pl.naam===naam);
+  return p ? p.club : terugvalClub;
+}
+
+function aggregeerPerSpeler(beurten){
+  const map = new Map();
+  beurten.forEach(b=>{
+    if(!map.has(b.naam)){
+      map.set(b.naam, {naam:b.naam, positie:b.positie, club:b.club, goals:0, assists:0, geel:0, geel2:0, rood:0, cleansheets:0, eigenDoelpunt:0, penMissen:0, punten:0, wedstrijden:0});
+    }
+    const agg = map.get(b.naam);
+    agg.club = huidigeClubVan(b.naam, b.club);
+    agg.positie = b.positie;
+    agg.goals += golenVanSpeler(b.sp);
+    agg.assists += Number(b.sp.assist)||0;
+    agg.geel += Number(b.sp.geel)||0;
+    agg.geel2 += Number(b.sp.geel2)||0;
+    agg.rood += Number(b.sp.rood)||0;
+    agg.cleansheets += (b.positie==='K' ? (Number(b.sp.geen_tegengoals)||0) : 0);
+    agg.eigenDoelpunt += Number(b.sp.eigen_doelpunt)||0;
+    agg.penMissen += Number(b.sp.pen_missen)||0;
+    agg.punten += b.punten;
+    agg.wedstrijden += 1;
+  });
+  return [...map.values()].map(a=>({...a, geelTotaal: a.geel+a.geel2, blooperTotaal: a.eigenDoelpunt+a.penMissen}));
+}
+
+function topN(lijst, key, n){
+  return [...lijst].filter(x=>x[key]>0).sort((a,b)=>b[key]-a[key]).slice(0, n||10);
+}
+
+// Eén rij per speelronde: de speler met de hoogste fantasy-score in die ronde.
+function spelerVanDeRonde(beurten){
+  const perRonde = new Map();
+  beurten.forEach(b=>{
+    const huidige = perRonde.get(b.ronde);
+    if(!huidige || b.punten > huidige.punten) perRonde.set(b.ronde, b);
+  });
+  return [...perRonde.entries()].sort((a,b)=>a[0]-b[0]).map(([ronde, b])=>({ronde, ...b}));
+}
+
+function statTabelHTML(titel, uitleg, rows, kolommen, opts){
+  opts = opts || {};
+  const wideClass = opts.wide ? ' wide' : '';
+  if(rows.length===0){
+    return `<div class="panel${wideClass}"><h3 style="margin-top:0;">${esc(titel)}</h3><div class="muted small">${uitleg}</div><div class="muted small" style="margin-top:8px;">Nog geen gegevens.</div></div>`;
+  }
+  const head = kolommen.map(k=>`<th>${esc(k.label)}</th>`).join('');
+  const body = rows.map((r,i)=>`<tr><td class="muted small">${opts.rondeKolom ? r.ronde : (i+1)}</td>${kolommen.map(k=>`<td>${k.get(r)}</td>`).join('')}</tr>`).join('');
+  const tabelHTML = `<table><thead><tr><th>${opts.rondeKolom ? 'Ronde' : '#'}</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<div class="panel${wideClass}"><h3 style="margin-top:0;">${esc(titel)}</h3><div class="muted small" style="margin-bottom:8px;">${uitleg}</div>${opts.scroll ? `<div class="stats-scroll">${tabelHTML}</div>` : tabelHTML}</div>`;
+}
+
+function renderStats(){
+  const beurten = alleSpelerBeurten();
+  const agg = aggregeerPerSpeler(beurten);
+
+  const kolSpeler = {label:'Speler', get:r=>esc(r.naam)};
+  const kolClub = {label:'Club', get:r=>esc(r.club||'-')};
+  const kolPos = {label:'Pos', get:r=>`<span class="badge ${r.positie}">${r.positie}</span>`};
+
+  const blokken = [];
+
+  blokken.push(statTabelHTML('Topscorers', "Meeste goals dit seizoen (gewone goals + gescoorde penalty's samen).",
+    topN(agg,'goals',10), [kolSpeler, kolClub, kolPos, {label:'Goals', get:r=>r.goals}]));
+
+  blokken.push(statTabelHTML('Assists', 'Meeste assists dit seizoen.',
+    topN(agg,'assists',10), [kolSpeler, kolClub, kolPos, {label:'Assists', get:r=>r.assists}]));
+
+  blokken.push(statTabelHTML('Gele kaarten', 'Meeste gele kaarten (1e + 2e gele kaart samen).',
+    topN(agg,'geelTotaal',10), [kolSpeler, kolClub, kolPos, {label:'Geel', get:r=>r.geel}, {label:'2e Geel', get:r=>r.geel2}, {label:'Totaal', get:r=>r.geelTotaal}]));
+
+  blokken.push(statTabelHTML('Rode kaarten', 'Meeste directe rode kaarten dit seizoen.',
+    topN(agg,'rood',10), [kolSpeler, kolClub, kolPos, {label:'Rood', get:r=>r.rood}]));
+
+  blokken.push(statTabelHTML('Clean sheets (keepers)', 'Keepers met de meeste clean sheets. Wordt automatisch bijgehouden zodra bij Speelronde de teamscore op 0 tegendoelpunten staat.',
+    topN(agg.filter(a=>a.positie==='K'),'cleansheets',10), [kolSpeler, kolClub, {label:'Clean sheets', get:r=>r.cleansheets}]));
+
+  blokken.push(statTabelHTML('Meeste fantasy-punten (MVP)', 'Spelers met de meeste fantasy-punten dit seizoen, los van welk team ze hadden.',
+    topN(agg,'punten',10), [kolSpeler, kolClub, kolPos, {label:'Punten', get:r=>r.punten}]));
+
+  blokken.push(statTabelHTML('Blooper-lijst', 'Meeste eigen doelpunten + gemiste penalty\'s samen — de pechvogels van het seizoen.',
+    topN(agg,'blooperTotaal',10), [kolSpeler, kolClub, kolPos, {label:'Eigen doelpunt', get:r=>r.eigenDoelpunt}, {label:'Pen gemist', get:r=>r.penMissen}, {label:'Totaal', get:r=>r.blooperTotaal}]));
+
+  blokken.push(statTabelHTML('Speler van de ronde', 'Per speelronde de speler met de hoogste fantasy-score in die ronde.',
+    spelerVanDeRonde(beurten), [kolSpeler, kolClub, kolPos, {label:'Punten', get:r=>r.punten}], {wide:true, rondeKolom:true, scroll:true}));
+
+  document.getElementById('statsContainer').innerHTML = `<div class="stats-grid">${blokken.join('')}</div>`;
+}
+</script>

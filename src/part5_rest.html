@@ -200,6 +200,7 @@ function switchTab(name){
   if(name==='stand') renderStand();
   if(name==='teams') renderTeamsGrid();
   if(name==='clubs') renderClubSquad();
+  if(name==='stats') renderStats();
 }
 document.getElementById('mainnav').addEventListener('click', (e)=>{
   if(e.target.dataset.tab) switchTab(e.target.dataset.tab);
