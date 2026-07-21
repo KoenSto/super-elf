@@ -9,7 +9,10 @@ const DATA = {
   tussenstand: __TUSSENSTAND_JSON__
 };
 const STAT_KEYS = ['goal','pen_scoren','pen_missen','pen_stoppen','eigen_doelpunt','assist','geen_tegengoals','geel','geel2','rood'];
-const STAT_LABELS = {goal:'Goal',pen_scoren:'Pen.+',pen_missen:'Pen.-',pen_stoppen:'Pen.stop',eigen_doelpunt:'Eig.doel',assist:'Assist',geen_tegengoals:'Schoon',geel:'Geel',geel2:'2e Geel',rood:'Rood'};
+// Korte kolomkoppen die binnen de smalle invulkolommen passen (zie .evt-head/.player-row CSS);
+// de volledige naam staat als title-tooltip op de kolomkop zelf.
+const STAT_LABELS = {goal:'Goal',pen_scoren:'Pen+',pen_missen:'Pen-',pen_stoppen:'PenSt',eigen_doelpunt:'EigD',assist:'Assist',geen_tegengoals:'Schoon',geel:'Geel',geel2:'2eGl',rood:'Rood'};
+const STAT_LABELS_VOL = {goal:'Goal',pen_scoren:'Penalty gescoord',pen_missen:'Penalty gemist',pen_stoppen:'Penalty gestopt',eigen_doelpunt:'Eigen doelpunt',assist:'Assist',geen_tegengoals:'Geen tegengoals (clean sheet)',geel:'Gele kaart',geel2:'2e gele kaart',rood:'Rode kaart'};
 const POS_LIST = ['K','V','M','A'];
 const POS_NAAM = {K:'Keeper',V:'Verdediger',M:'Middenvelder',A:'Aanvaller'};
 const POS_LINE = {K:'var(--posK)',V:'var(--posV)',M:'var(--posM)',A:'var(--posA)'};

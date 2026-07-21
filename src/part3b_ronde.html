@@ -50,9 +50,7 @@ function statRowHTML(ronde, mi, side, pi, sp, resultaat){
   return `<div class="player-row" style="border-left-color:${posLineColor(sp.positie)};">
     <span class="muted small">${pi+1}</span>
     <input type="text" list="spelerlijst-${side}-${mi}-${ronde}" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" value="${esc(sp.naam)}" placeholder="Spelernaam">
-    <select data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="positie">
-      ${POS_LIST.map(p=>`<option value="${p}" ${sp.positie===p?'selected':''}>${p}</option>`).join('')}
-    </select>
+    <span class="badge ${sp.positie}" title="Positie staat vast per speler (spelersdatabase)">${sp.positie}</span>
     ${statInputs}
     <span class="pts ${puntenClass}">${punten}</span>
     <span class="close-btn" title="verwijder" data-remove-r="${ronde}" data-remove-m="${mi}" data-remove-side="${side}" data-remove-p="${pi}">✕</span>
@@ -68,7 +66,7 @@ function renderMatchCard(ronde, m, mi){
   const totUit = m.spelersUit.reduce((s,sp)=>s+berekenPunten(sp.positie,resUit,sp),0);
 
   const clubOpts = c => DATA.clubs.map(cl=>`<option value="${esc(cl)}" ${cl===c?'selected':''}>${esc(cl)}</option>`).join('');
-  const evtHead = `<div class="evt-head"><span></span><span>Speler</span><span>Pos</span>${STAT_KEYS.map(k=>`<span>${STAT_LABELS[k]}</span>`).join('')}<span>Punten</span><span></span></div>`;
+  const evtHead = `<div class="evt-head"><span></span><span>Speler</span><span title="Positie">Pos</span>${STAT_KEYS.map(k=>`<span title="${STAT_LABELS_VOL[k]}">${STAT_LABELS[k]}</span>`).join('')}<span>Punten</span><span></span></div>`;
 
   div.innerHTML = `
     <div class="match-head">
@@ -126,7 +124,13 @@ document.addEventListener('input', (e)=>{
     const sp = arr[t.dataset.p];
     if(!sp) return;
     const f = t.dataset.field;
-    sp[f] = (f==='naam'||f==='positie'||f==='rol') ? t.value : (t.value===''?0:Number(t.value));
+    sp[f] = (f==='naam'||f==='rol') ? t.value : (t.value===''?0:Number(t.value));
+    if(f==='naam'){
+      // Positie ligt vast per speler (spelersdatabase) — geen los invulveld, automatisch overnemen zodra de naam een bekende speler van deze club is.
+      const club = t.dataset.side==='thuis' ? m.clubThuis : m.clubUit;
+      const bekend = playersOfClub(club).find(p => p.naam.toLowerCase() === t.value.trim().toLowerCase());
+      if(bekend) sp.positie = bekend.positie;
+    }
     saveState();
     renderRonde();
   }
