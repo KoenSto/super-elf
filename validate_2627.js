@@ -171,6 +171,28 @@ async function main(){
   })()`);
   console.log('34) gesloten select-veld krijgt zelf ook de pastelkleur (naamStijl):', naamStijlCheck);
 
+  // Teamscore mag niet meer los invulbaar zijn en moet automatisch volgen uit goals/eigen doelpunten.
+  console.log('35) geen los invulveld meer voor de teamscore in speelronde:', !/data-field="uitslagThuis"/.test(html) && !/data-field="uitslagUit"/.test(html));
+  const scoreCheck = get(sb, `(function(){
+    const m = {
+      clubThuis:'A', clubUit:'B',
+      spelersThuis:[{naam:'X1',positie:'A',goal:2,eigen_doelpunt:0},{naam:'X2',positie:'A',goal:0,eigen_doelpunt:1}],
+      spelersUit:[{naam:'Y1',positie:'A',goal:1,eigen_doelpunt:0},{naam:'Y2',positie:'A',goal:0,eigen_doelpunt:1}]
+    };
+    const u = berekenUitslagVanWedstrijd(m);
+    // Thuis: 2 eigen goals (X1) + 1 eigen doelpunt van uit-speler Y2 (telt vóór thuis) = 3.
+    // Uit: 1 eigen goal (Y1) + 1 eigen doelpunt van thuis-speler X2 (telt vóór uit) = 2.
+    return u.thuis===3 && u.uit===2;
+  })()`);
+  console.log('36) goal telt voor eigen team en eigen doelpunt telt voor tegenstander:', scoreCheck);
+  const syncCheck = get(sb, `(function(){
+    const m = { clubThuis:'A', clubUit:'B', uitslagThuis:0, uitslagUit:0,
+      spelersThuis:[{naam:'X1',positie:'A',goal:1,eigen_doelpunt:0}], spelersUit:[] };
+    syncUitslag(m);
+    return m.uitslagThuis===1 && m.uitslagUit===0;
+  })()`);
+  console.log('37) syncUitslag schrijft de berekende score terug op de wedstrijd:', syncCheck);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
