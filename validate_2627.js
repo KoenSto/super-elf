@@ -353,6 +353,36 @@ async function main(){
   })()`);
   console.log('54) een bekerwedstrijd in een nog niet ingevulde speelronde blijft \'nog te spelen\':', nogSpelenCheck);
 
+  run(sb, `
+    STATE.beker = {drawn:true, slots:['beker_t1','beker_t2','beker_t3', null], rondeNummers:[25,26], getrokkenOp:'test', aantalTeamsBijLoting:3};
+  `);
+  const tbdCheck = get(sb, `(function(){
+    const {rondes, kampioenKey} = berekenBekerSchema();
+    const m1 = rondes[0].wedstrijden[0]; // T1 vs T2 in ronde 25 -> geen spelersdata -> nog niet beslist
+    const m2 = rondes[0].wedstrijden[1]; // T3 vs bye -> T3 gaat automatisch door
+    const finale = rondes[1].wedstrijden[0]; // (nog onbekend) vs T3
+    return m1.winnaarKey===null && m2.winnaarKey==='beker_t3' &&
+           finale.status==='wacht_op_vorige_ronde' && finale.teamA==='TBD' && finale.teamB==='beker_t3' &&
+           kampioenKey===null;
+  })()`);
+  console.log('55) een onbesliste wedstrijd voorkomt dat een team ten onrechte kampioen wordt via een dubbele bye:', tbdCheck);
+
+  const geenDubbeleByeCheck = get(sb, `(function(){
+    for(let poging=0; poging<200; poging++){
+      const n = 2 + Math.floor(Math.random()*30); // 2..31 teams
+      const teams = Array.from({length:n}, (_,i)=>'fake_'+i);
+      const {bracketSize} = bepaalBekerRondeNummers(n);
+      const slots = bouwBekerSlots(teams, bracketSize);
+      for(let j=0;j<slots.length;j+=2){
+        if(slots[j]===null && slots[j+1]===null) return false; // twee bye-plekken in dezelfde wedstrijd mag niet
+      }
+      const nullCount = slots.filter(s=>s===null).length;
+      if(nullCount !== bracketSize-n) return false; // aantal byes moet exact kloppen
+    }
+    return true;
+  })()`);
+  console.log('56) de loting verdeelt byes altijd over verschillende koppels (nooit twee bye-plekken tegen elkaar):', geenDubbeleByeCheck);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
