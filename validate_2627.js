@@ -55,7 +55,7 @@ function get(sb,n){ return vm.runInContext(n, sb); }
 function run(sb,c){ return vm.runInContext('(function(){ ' + c + ' })();', sb); }
 
 async function main(){
-  const users = { 'koen@super-elf.local': {password:'test1234', uid:'UIDKOEN'} };
+  const users = { 'koen@super-elf.local': {password:'test1234', uid:'UIDKOEN'}, 'gast@super-elf.local': {password:'super11', uid:'UIDGAST'} };
   const cloud = { value: null, listeners: [] };
   const fakeFb = makeFakeFirebase(cloud, users);
   let sb = newSandbox({embeddedStateJSON: makeEl('null'), loginOverlay: makeEl(), appRoot: makeEl(), loginError: makeEl(), firebaseStatus: makeEl(), fbHeaderStatus: makeEl(), loginUserBadge: makeEl()}, {}, {firebase: fakeFb});
@@ -390,6 +390,30 @@ async function main(){
     return STATE.beker === null;
   })()`);
   console.log('58) wisBekerLoting() maakt STATE.beker weer leeg:', wisCheck);
+
+  // Kijker-rol (alleen-lezen): een niet-editor account (zoals "gast") mag alles zien maar
+  // moet geblokkeerd worden bij elke poging tot wijzigen, zowel via de losse guard-functie
+  // als via de daadwerkelijke mutatiefuncties (die intern blokkeerAlsKijker() aanroepen).
+  let sb3 = newSandbox({embeddedStateJSON: makeEl('null'), loginOverlay: makeEl(), appRoot: makeEl(), loginError: makeEl(), firebaseStatus: makeEl(), fbHeaderStatus: makeEl(), loginUserBadge: makeEl(), kijkerBanner: makeEl()}, {}, {firebase: makeFakeFirebase({value:null,listeners:[]}, users)});
+  await get(sb3,'doLogin')('gast','super11');
+  await new Promise(r=>setTimeout(r,10));
+  console.log('59) canEdit() is false voor gast en true voor koen (editor):', get(sb3,'canEdit()')===false && get(sb,'canEdit()')===true);
+  console.log('60) navDataBtn blijft verborgen voor gast:', get(sb3,"document.getElementById('navDataBtn').style.display")==='none');
+  console.log('61) kijkerBanner wordt getoond voor gast:', get(sb3,"document.getElementById('kijkerBanner').style.display")==='');
+  run(sb3, "addTeam('Gast','Team Gast');");
+  console.log('62) gast kan geen team aanmaken (addTeam wordt geblokkeerd):', Object.keys(get(sb3,'STATE.teams')).length===0);
+  run(sb3, `
+    STATE.teams['gast_test_team'] = {speler:'Gast', teamnaam:'Gast Test', basis:[], wissels:[], totaal_weken:{}};
+    addBasisSpeler('gast_test_team', DATA.clubs[0], STATE.players.find(p=>p.club===DATA.clubs[0]).naam);
+  `);
+  console.log('63) gast kan geen basisspeler toevoegen (addBasisSpeler wordt geblokkeerd):', get(sb3,"STATE.teams['gast_test_team'].basis.length")===0);
+  run(sb3, "trekBekerLoting();");
+  console.log('64) gast kan geen bekerloting trekken (trekBekerLoting wordt geblokkeerd):', !get(sb3,'STATE.beker'));
+  run(sb3, "addPlayerToClub(DATA.clubs[0], 'Gast Speler Test', 'V', 100);");
+  console.log('65) gast kan geen speler aan een club toevoegen (addPlayerToClub wordt geblokkeerd):', !get(sb3,"STATE.players.some(p=>p.naam==='Gast Speler Test')"));
+  const aantalTeamsVoor66 = get(sb,'Object.keys(STATE.teams).length');
+  run(sb, "addTeam('Frank','Team Frank');");
+  console.log('66) koen (editor) kan nog steeds gewoon een team aanmaken (bestaand gedrag blijft werken):', get(sb,'Object.keys(STATE.teams).length')===aantalTeamsVoor66+1);
 
   console.log('ALLES OK');
 }
