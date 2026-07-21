@@ -37,11 +37,11 @@ function renderStand(){
     const live = liveTotaalRonde(team, ronde);
     const orig = origineelRonde(team, ronde);
     const diff = orig!==null ? live.total-orig : null;
-    const ts = team.tsId!==undefined ? DATA.tussenstand[team.tsId].weken : {};
     return {
       team, live: live.total, gevonden: live.gevonden, orig, diff,
-      p1: ts.P1 ?? null, p2: ts.P2 ?? null, p3: ts.P3 ?? null, p4: ts.P4 ?? null,
-      totaal: origineelTotaal(team)
+      p1: periodeTotaal(team,'periode1'), p2: periodeTotaal(team,'periode2'),
+      p3: periodeTotaal(team,'periode3'), p4: periodeTotaal(team,'periode4'),
+      totaal: seizoenTotaal(team)
     };
   });
   rows.sort((a,b)=>{
@@ -54,14 +54,20 @@ function renderStand(){
     return 0;
   });
   const arrow = (key)=> standSortKey===key ? (standSortDir==='asc'?' ▲':' ▼') : '';
+  const per = DATA.spelregels.periodes || {};
   let html = '<table><thead><tr>';
   STAND_COLUMNS.forEach(c=>{
+    let title = '';
     if(c.key==='live'){ c = {...c, label:`Ronde ${ronde} live`}; }
     if(c.key==='orig'){ c = {...c, label:`Ronde ${ronde} origineel`}; }
+    if(['p1','p2','p3','p4'].includes(c.key)){
+      const p = per['periode'+c.key.slice(1)];
+      if(p) title = `title="Ronde ${p.van} t/m ${p.tot}"`;
+    }
     if(c.sortable){
-      html += `<th style="cursor:pointer;user-select:none;" data-sort-key="${c.key}">${c.label}${arrow(c.key)}</th>`;
+      html += `<th ${title} style="cursor:pointer;user-select:none;" data-sort-key="${c.key}">${c.label}${arrow(c.key)}</th>`;
     } else {
-      html += `<th>${c.label}</th>`;
+      html += `<th ${title}>${c.label}</th>`;
     }
   });
   html += '</tr></thead><tbody>';
@@ -138,6 +144,10 @@ function initRegelsTab(){
     <tbody><tr><td>Winst</td><td>${t.winst.K}</td><td>${t.winst.V}</td><td>${t.winst.M}</td><td>${t.winst.A}</td></tr>
     <tr><td>Gelijk</td><td>${t.gelijk.K}</td><td>${t.gelijk.V}</td><td>${t.gelijk.M}</td><td>${t.gelijk.A}</td></tr>
     ${eventRows}</tbody></table>
+    ${r.periodes ? `<h3 style="margin-top:16px;">Periodes</h3>
+    <table><thead><tr><th>Periode</th><th>Speelrondes</th></tr></thead><tbody>${
+      Object.entries(r.periodes).map(([k,p],i)=>`<tr><td>Periode ${i+1}</td><td>Ronde ${p.van} t/m ${p.tot}</td></tr>`).join('')
+    }</tbody></table>` : ''}
     <h3 style="margin-top:16px;">Indicatie prijzengeld</h3>
     <table><tbody>${Object.entries(r.prijzengeld_indicatie).map(([k,v])=>`<tr><td>${k}</td><td>${v}%</td></tr>`).join('')}</tbody></table>
   `;

@@ -18,6 +18,30 @@ function origineelRonde(team, ronde){
   const v = DATA.tussenstand[team.tsId].weken[String(ronde)];
   return v===undefined ? null : v;
 }
+// Live periode-/seizoenstotalen: som van de live ronde-score (huidige selectie x wedstrijdgegevens)
+// over een reeks rondes. Nodig zodra er geen vooraf vastgelegde eindstand is (nieuw seizoen) —
+// voor oudere seizoenen met een DATA.tussenstand-snapshot (team.tsId gezet) blijft de vastgelegde
+// waarde leidend, zodat dat gedrag niet verandert.
+function liveTotaalOverRondes(team, van, tot){
+  let som = 0;
+  for(let r=van; r<=tot; r++){ som += liveTotaalRonde(team, r).total; }
+  return som;
+}
+function periodeTotaal(team, periodeKey){
+  if(team.tsId!==undefined){
+    const ts = DATA.tussenstand[team.tsId].weken;
+    const kort = 'P' + periodeKey.replace('periode',''); // 'periode1' -> 'P1' (oude opslagvorm)
+    const v = ts[kort];
+    return v===undefined ? null : v;
+  }
+  const p = DATA.spelregels.periodes && DATA.spelregels.periodes[periodeKey];
+  if(!p) return null;
+  return liveTotaalOverRondes(team, p.van, p.tot);
+}
+function seizoenTotaal(team){
+  if(team.tsId!==undefined) return origineelTotaal(team);
+  return liveTotaalOverRondes(team, 1, 34);
+}
 function computeFormatie(basis){
   const c = {K:0,V:0,M:0,A:0};
   basis.forEach(b=>{ if(c[b.positie]!==undefined) c[b.positie]++; });
