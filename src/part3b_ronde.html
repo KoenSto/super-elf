@@ -41,15 +41,31 @@ function renderRonde(){
   rd.matches.forEach((m, mi)=> cont.appendChild(renderMatchCard(ronde, m, mi)));
 }
 
-function statRowHTML(ronde, mi, side, pi, sp, resultaat){
+// Spelerskeuze in dezelfde volgorde als het overzicht bij Voetbalploegen (positie, dan naam),
+// met de naam gearceerd in de pastelkleur van zijn positie — zowel in de geopende lijst als in
+// het gesloten veld zelf, zodat direct zichtbaar is welke positie een geselecteerde speler heeft.
+function playerSelectOptionsHTML(club, geselecteerdNaam){
+  const spelers = playersOfClub(club);
+  const heeftMatch = spelers.some(p=>p.naam===geselecteerdNaam);
+  let html = `<option value="" ${!geselecteerdNaam?'selected':''}>&mdash; kies speler &mdash;</option>`;
+  if(geselecteerdNaam && !heeftMatch){
+    html += `<option value="${esc(geselecteerdNaam)}" selected>${esc(geselecteerdNaam)} (niet in spelersdatabase)</option>`;
+  }
+  html += spelers.map(p=>
+    `<option value="${esc(p.naam)}" style="background-color:var(--pos${p.positie}-bg);color:var(--pos${p.positie}-text);" ${p.naam===geselecteerdNaam?'selected':''}>${esc(p.naam)}</option>`
+  ).join('');
+  return html;
+}
+function statRowHTML(ronde, mi, side, pi, sp, resultaat, club){
   const punten = berekenPunten(sp.positie, resultaat, sp);
   const puntenClass = punten>0?'pos':(punten<0?'neg':'');
   let statInputs = STAT_KEYS.map(k=>
     `<input type="number" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="${k}" value="${sp[k]||0}">`
   ).join('');
+  const naamStijl = sp.naam ? `background-color:var(--pos${sp.positie}-bg);color:var(--pos${sp.positie}-text);font-weight:600;` : '';
   return `<div class="player-row" style="border-left-color:${posLineColor(sp.positie)};">
     <span class="muted small">${pi+1}</span>
-    <input type="text" list="spelerlijst-${side}-${mi}-${ronde}" data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" value="${esc(sp.naam)}" placeholder="Spelernaam">
+    <select data-r="${ronde}" data-m="${mi}" data-side="${side}" data-p="${pi}" data-field="naam" style="${naamStijl}">${playerSelectOptionsHTML(club, sp.naam)}</select>
     <span class="badge ${sp.positie}" title="Positie staat vast per speler (spelersdatabase)">${sp.positie}</span>
     ${statInputs}
     <span class="pts ${puntenClass}">${punten}</span>
@@ -85,22 +101,21 @@ function renderMatchCard(ronde, m, mi){
       <div class="team-side">
         <h4>${esc(m.clubThuis)} <span class="muted small">(thuis)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="thuis">+ speler</button></h4>
         ${evtHead}
-        ${m.spelersThuis.map((sp,pi)=>statRowHTML(ronde,mi,'thuis',pi,sp,resThuis)).join('')}
-        <datalist id="spelerlijst-thuis-${mi}-${ronde}">${playersOfClub(m.clubThuis).map(p=>`<option value="${esc(p.naam)}">`).join('')}</datalist>
+        ${m.spelersThuis.map((sp,pi)=>statRowHTML(ronde,mi,'thuis',pi,sp,resThuis,m.clubThuis)).join('')}
       </div>
       <div class="team-side">
         <h4>${esc(m.clubUit)} <span class="muted small">(uit)</span> <button class="btn small" data-add-r="${ronde}" data-add-m="${mi}" data-add-side="uit">+ speler</button></h4>
         ${evtHead}
-        ${m.spelersUit.map((sp,pi)=>statRowHTML(ronde,mi,'uit',pi,sp,resUit)).join('')}
-        <datalist id="spelerlijst-uit-${mi}-${ronde}">${playersOfClub(m.clubUit).map(p=>`<option value="${esc(p.naam)}">`).join('')}</datalist>
+        ${m.spelersUit.map((sp,pi)=>statRowHTML(ronde,mi,'uit',pi,sp,resUit,m.clubUit)).join('')}
       </div>
     </div>
   `;
   return div;
 }
 
-/* Event delegation for the ronde tab */
-document.addEventListener('input', (e)=>{
+/* Event delegation for de ronde-tab. De naam-select gebruikt 'change' (sommige browsers vuren
+   geen 'input' event op een <select>); alle overige velden blijven op 'input' zoals voorheen. */
+function rondeVeldHandler(e){
   const t = e.target;
   if(!t.dataset) return;
   if(t.dataset.field && t.dataset.r!==undefined && t.dataset.m!==undefined && t.dataset.side===undefined){
@@ -134,7 +149,9 @@ document.addEventListener('input', (e)=>{
     saveState();
     renderRonde();
   }
-});
+}
+document.addEventListener('input', rondeVeldHandler);
+document.addEventListener('change', rondeVeldHandler);
 document.addEventListener('click', (e)=>{
   const t = e.target;
   if(t.dataset.addR!==undefined){

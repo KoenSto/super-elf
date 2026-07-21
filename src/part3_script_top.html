@@ -34,7 +34,12 @@ function berekenPunten(positie, resultaat, ev){
 }
 function fmtGeld(n){ return '€' + Number(n||0).toLocaleString('nl-NL'); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function playersOfClub(club){ return STATE.players.filter(p=>p.club===club).sort((a,b)=>a.naam.localeCompare(b.naam)); }
+// Zelfde volgorde als het overzicht bij Voetbalploegen: eerst op positie (K, V, M, A), daarna op naam.
+const POS_SORT_ORDER = {K:0,V:1,M:2,A:3};
+function playersOfClub(club){
+  return STATE.players.filter(p=>p.club===club)
+    .sort((a,b)=> (POS_SORT_ORDER[a.positie]-POS_SORT_ORDER[b.positie]) || a.naam.localeCompare(b.naam));
+}
 // Max. aantal reguliere wissels is dit seizoen (26-27) rondeafhankelijk: je begint met
 // spelregels.max_wissels en krijgt er na ronde "extra_wissel_na_ronde" nog één extra bij.
 function maxWisselsVoorRonde(ronde){
