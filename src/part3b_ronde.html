@@ -87,10 +87,10 @@ function renderMatchCard(ronde, m, mi){
   div.innerHTML = `
     <div class="match-head">
       <select data-r="${ronde}" data-m="${mi}" data-field="clubThuis">${clubOpts(m.clubThuis)}</select>
-      <div class="score">
-        <input type="number" min="0" style="width:44px" data-r="${ronde}" data-m="${mi}" data-field="uitslagThuis" value="${m.uitslagThuis}">
+      <div class="score" title="De teamscore wordt automatisch berekend uit de goals en eigen doelpunten van de spelers hieronder.">
+        <span class="score-num">${m.uitslagThuis||0}</span>
         <span>-</span>
-        <input type="number" min="0" style="width:44px" data-r="${ronde}" data-m="${mi}" data-field="uitslagUit" value="${m.uitslagUit}">
+        <span class="score-num">${m.uitslagUit||0}</span>
       </div>
       <select data-r="${ronde}" data-m="${mi}" data-field="clubUit">${clubOpts(m.clubUit)}</select>
       <span class="pill">${resThuis ? {winst:'Winst thuis',gelijk:'Gelijkspel',verlies:'Winst uit'}[resThuis] : '—'}</span>
@@ -122,11 +122,9 @@ function rondeVeldHandler(e){
     const rd = ensureRonde(t.dataset.r);
     const m = rd.matches[t.dataset.m];
     if(!m) return;
-    if(t.dataset.field==='uitslagThuis' || t.dataset.field==='uitslagUit'){
-      m[t.dataset.field] = t.value===''?null:Number(t.value);
-    } else {
-      m[t.dataset.field] = t.value;
-    }
+    // De teamscore (uitslagThuis/uitslagUit) wordt niet meer los ingevuld — die wordt hieronder
+    // altijd automatisch afgeleid uit de goals/eigen doelpunten van de spelers.
+    m[t.dataset.field] = t.value;
     saveState();
     renderRonde();
     return;
@@ -146,6 +144,9 @@ function rondeVeldHandler(e){
       const bekend = playersOfClub(club).find(p => p.naam.toLowerCase() === t.value.trim().toLowerCase());
       if(bekend) sp.positie = bekend.positie;
     }
+    // Teamscore direct opnieuw berekenen: een "goal" telt voor het eigen team, een
+    // "eigen doelpunt" telt voor de tegenstander. Zo kan de score niet los raken van de statistieken.
+    syncUitslag(m);
     saveState();
     renderRonde();
   }
@@ -166,6 +167,7 @@ document.addEventListener('click', (e)=>{
     const m = rd.matches[t.dataset.removeM];
     const arr = t.dataset.removeSide==='thuis' ? m.spelersThuis : m.spelersUit;
     arr.splice(Number(t.dataset.removeP),1);
+    syncUitslag(m); // een verwijderde speler kan goals/eigen doelpunten hebben gehad die meetelden voor de score
     saveState(); renderRonde();
   }
   if(t.dataset.removeMatch!==undefined){

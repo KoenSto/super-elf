@@ -32,6 +32,19 @@ function berekenPunten(positie, resultaat, ev){
   STAT_KEYS.forEach(k=>{ p += (Number(ev[k])||0) * ((t[k]&&t[k][positie])||0); });
   return p;
 }
+// Teamscore wordt afgeleid uit de spelersgegevens (niet meer los handmatig invulbaar), om
+// verschil tussen ingevulde goals en de eindstand te voorkomen: elke "goal" van een speler
+// telt voor zijn eigen team, elk "eigen doelpunt" telt juist voor de tegenstander.
+function berekenUitslagVanWedstrijd(m){
+  const golsThuis = m.spelersThuis.reduce((s,sp)=>s+(Number(sp.goal)||0),0) + m.spelersUit.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
+  const golsUit = m.spelersUit.reduce((s,sp)=>s+(Number(sp.goal)||0),0) + m.spelersThuis.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
+  return {thuis: golsThuis, uit: golsUit};
+}
+function syncUitslag(m){
+  const u = berekenUitslagVanWedstrijd(m);
+  m.uitslagThuis = u.thuis;
+  m.uitslagUit = u.uit;
+}
 function fmtGeld(n){ return '€' + Number(n||0).toLocaleString('nl-NL'); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // Zelfde volgorde als het overzicht bij Voetbalploegen: eerst op positie (K, V, M, A), daarna op naam.
