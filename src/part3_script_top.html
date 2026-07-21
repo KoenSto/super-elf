@@ -42,7 +42,7 @@ function maxWisselsVoorRonde(ronde){
 }
 
 /* ============ STATE (localStorage) ============ */
-const STORAGE_KEY = 'superElfDashboard_v1';
+const STORAGE_KEY = 'superElfDashboard2627_v1';
 let STATE = null;
 
 function buildSeedRonde(nr){
@@ -180,7 +180,7 @@ function updateFileConnStatus(){
    dan volstaat één klik op de knop bovenaan (in plaats van opnieuw het bestand te zoeken). */
 function idbOpen(){
   return new Promise((resolve, reject)=>{
-    const req = indexedDB.open('superElfDashboardDB', 1);
+    const req = indexedDB.open('superElfDashboard2627DB', 1);
     req.onupgradeneeded = ()=>{ req.result.createObjectStore('handles'); };
     req.onsuccess = ()=>resolve(req.result);
     req.onerror = ()=>reject(req.error);
