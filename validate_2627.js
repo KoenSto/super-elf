@@ -206,6 +206,31 @@ async function main(){
   })()`);
   console.log('38) gescoorde penalty telt mee als doelpunt; gemiste/gestopte penalty niet:', penCheck);
 
+  console.log('39) geen los invulveld meer voor clean sheet (Schoon) in speelronde:', !/data-field="geen_tegengoals"/.test(html));
+  const cleanSheetCheck = get(sb, `(function(){
+    const m = {
+      clubThuis:'A', clubUit:'B',
+      spelersThuis:[{naam:'X1',positie:'K',goal:1,pen_scoren:0,eigen_doelpunt:0,geen_tegengoals:0},{naam:'X2',positie:'V',goal:0,pen_scoren:0,eigen_doelpunt:0,geen_tegengoals:0}],
+      spelersUit:[{naam:'Y1',positie:'A',goal:0,pen_scoren:0,eigen_doelpunt:0,geen_tegengoals:0}]
+    };
+    syncUitslag(m);
+    // Uitslag wordt 1-0: thuis kreeg geen tegengoal (clean sheet voor alle thuisspelers),
+    // uit incasseerde wel een goal (dus geen clean sheet voor de uit-speler).
+    return m.spelersThuis.every(sp=>sp.geen_tegengoals===1) && m.spelersUit.every(sp=>sp.geen_tegengoals===0);
+  })()`);
+  console.log('40) clean sheet wordt automatisch gezet voor het hele team bij 0 tegengoals:', cleanSheetCheck);
+  const geenCleanSheetBijTegengoalCheck = get(sb, `(function(){
+    const m = {
+      clubThuis:'A', clubUit:'B',
+      spelersThuis:[{naam:'X1',positie:'K',goal:0,pen_scoren:0,eigen_doelpunt:0,geen_tegengoals:1}],
+      spelersUit:[{naam:'Y1',positie:'A',goal:1,pen_scoren:0,eigen_doelpunt:0,geen_tegengoals:0}]
+    };
+    syncUitslag(m);
+    // Uit scoort 1x, dus thuis krijgt geen clean sheet (ook al stond die er per ongeluk al op 1).
+    return m.spelersThuis.every(sp=>sp.geen_tegengoals===0);
+  })()`);
+  console.log('41) clean sheet wordt automatisch weer weggehaald zodra het team een tegengoal krijgt:', geenCleanSheetBijTegengoalCheck);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
