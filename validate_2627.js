@@ -143,6 +143,34 @@ async function main(){
   console.log('28) migratie vult lege ronde 2 met echt wedstrijdschema:', get(sb2, "STATE.rounds['2'].matches.length")===9);
   console.log('29) migratie zet dataVersion bij naar huidige SEED_VERSION:', get(sb2,'STATE.dataVersion')===get(sb2,'SEED_VERSION'));
 
+  // Speelronde: naam-select in plaats van datalist, met dezelfde volgorde als Voetbalploegen en pastelkleur per positie.
+  console.log('30) geen datalist meer voor spelernaam in speelronde:', !/id="spelerlijst-/.test(html) && !/list="spelerlijst-/.test(html));
+  console.log('31) spelernaam-veld in speelronde is nu een <select>:', /<select[^>]*data-field="naam"/.test(html));
+  const testClub2 = get(sb, 'DATA.clubs[1]');
+  const volgordeCheck = get(sb, `(function(){
+    const club = ${JSON.stringify(testClub2)};
+    const viaHelper = [...playerSelectOptionsHTML(club, '').matchAll(/<option value="([^"]*)"/g)].map(m=>m[1]).filter(v=>v!=='');
+    const viaVoetbalploegen = STATE.players.filter(p=>p.club===club)
+      .sort((a,b)=> ({K:0,V:1,M:2,A:3}[a.positie]-{K:0,V:1,M:2,A:3}[b.positie]) || a.naam.localeCompare(b.naam))
+      .map(p=>p.naam);
+    return JSON.stringify(viaHelper)===JSON.stringify(viaVoetbalploegen) && viaHelper.length>0;
+  })()`);
+  console.log('32) dropdown-volgorde in speelronde komt exact overeen met Voetbalploegen:', volgordeCheck);
+  const pastelCheck = get(sb, `(function(){
+    const club = ${JSON.stringify(testClub2)};
+    const speler = STATE.players.find(p=>p.club===club);
+    const html2 = playerSelectOptionsHTML(club, speler.naam);
+    return html2.includes('var(--pos'+speler.positie+'-bg)') && html2.includes('var(--pos'+speler.positie+'-text)');
+  })()`);
+  console.log('33) geselecteerde speler krijgt pastelkleur van zijn positie:', pastelCheck);
+  const naamStijlCheck = get(sb, `(function(){
+    const club = ${JSON.stringify(testClub2)};
+    const speler = STATE.players.find(p=>p.club===club);
+    const rowHtml = statRowHTML(1, 0, 'thuis', 0, {naam: speler.naam, positie: speler.positie}, null, club);
+    return /<select[^>]*data-field="naam"[^>]*style="background-color:var\\(--pos/.test(rowHtml);
+  })()`);
+  console.log('34) gesloten select-veld krijgt zelf ook de pastelkleur (naamStijl):', naamStijlCheck);
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
