@@ -478,6 +478,17 @@ async function main(){
   console.log('75) Tussenstand toont geen "origineel"/"Verschil"-kolom meer:', !standTableHtml.includes('origineel') && !standTableHtml.includes('Verschil'));
   console.log('76) STAND_COLUMNS bevat geen orig/diff meer:', !get(sb,"STAND_COLUMNS.some(c=>c.key==='orig'||c.key==='diff')"));
 
+  // Teams-tabblad gebruikte nog origineelTotaal (altijd null dit seizoen) om te sorteren/tonen en
+  // gaf daardoor elk team het "nieuw"-vlaggetje in plaats van een echt rangnummer; nu gebaseerd op
+  // seizoenTotaal (live), en de introtekst boven de tabbladen is verwijderd (niet nuttig).
+  console.log('77) introNote staat niet meer in de pagina:', !/id="introNote"/.test(html));
+  run(sb, "renderTeamsGrid();");
+  const teamsGridHtml = get(sb, "document.getElementById('teamsGrid').innerHTML");
+  console.log('78) Teams-overzicht toont geen "nieuw"-vlaggetje meer en gebruikt echte rangnummers:', !teamsGridHtml.includes('flag">nieuw') && /#1/.test(teamsGridHtml));
+  run(sb, `selectedTeamKey = Object.keys(STATE.teams)[0]; renderTeamDetail();`);
+  const teamDetailHtml = get(sb, "document.getElementById('teamDetail').innerHTML");
+  console.log('79) Teamdetail toont "Seizoenstotaal:" (niet meer "(origineel)") en geen dode origineel-tekst meer:', teamDetailHtml.includes('Seizoenstotaal:') && !teamDetailHtml.includes('Seizoenstotaal (origineel)') && !teamDetailHtml.includes('Het <b>origineel</b>'));
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
