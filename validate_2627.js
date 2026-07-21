@@ -470,6 +470,14 @@ async function main(){
   })()`);
   console.log('73) printRondeUitslag() herkent een gedeelde winst bij een gelijke rondescore:', printGedeeldCheck);
 
+  // Tussenstand: "Ronde X origineel" en "Verschil" waren altijd leeg dit seizoen (geen historisch
+  // archief zoals bij 25-26) en zijn daarom verwijderd; de resterende kolom heet nu "Speelronde X".
+  run(sb, "standRonde = 12; renderStand();");
+  const standTableHtml = get(sb, "document.getElementById('standTable').innerHTML");
+  console.log('74) Tussenstand-kolomkop toont "Speelronde 12" in plaats van "Ronde 12 live":', standTableHtml.includes('Speelronde 12') && !standTableHtml.includes('Ronde 12 live'));
+  console.log('75) Tussenstand toont geen "origineel"/"Verschil"-kolom meer:', !standTableHtml.includes('origineel') && !standTableHtml.includes('Verschil'));
+  console.log('76) STAND_COLUMNS bevat geen orig/diff meer:', !get(sb,"STAND_COLUMNS.some(c=>c.key==='orig'||c.key==='diff')"));
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
