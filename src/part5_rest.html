@@ -60,9 +60,7 @@ const STAND_COLUMNS = [
   {key:'rank', label:'#', sortable:false},
   {key:'team', label:'Team', sortable:true},
   {key:'speler', label:'Speler', sortable:true},
-  {key:'live', label:'Ronde live', sortable:true},
-  {key:'orig', label:'Ronde origineel', sortable:true},
-  {key:'diff', label:'Verschil', sortable:false},
+  {key:'live', label:'Speelronde', sortable:true},
   {key:'p1', label:'P1', sortable:true},
   {key:'p2', label:'P2', sortable:true},
   {key:'p3', label:'P3', sortable:true},
@@ -75,10 +73,8 @@ function renderStand(){
   if(sel && Number(sel.value)!==ronde) sel.value = ronde;
   let rows = TEAM_LIST.map(team=>{
     const live = liveTotaalRonde(team, ronde);
-    const orig = origineelRonde(team, ronde);
-    const diff = orig!==null ? live.total-orig : null;
     return {
-      team, live: live.total, gevonden: live.gevonden, orig, diff,
+      team, live: live.total, gevonden: live.gevonden,
       p1: periodeTotaal(team,'periode1'), p2: periodeTotaal(team,'periode2'),
       p3: periodeTotaal(team,'periode3'), p4: periodeTotaal(team,'periode4'),
       totaal: seizoenTotaal(team)
@@ -98,8 +94,7 @@ function renderStand(){
   let html = '<table><thead><tr>';
   STAND_COLUMNS.forEach(c=>{
     let title = '';
-    if(c.key==='live'){ c = {...c, label:`Ronde ${ronde} live`}; }
-    if(c.key==='orig'){ c = {...c, label:`Ronde ${ronde} origineel`}; }
+    if(c.key==='live'){ c = {...c, label:`Speelronde ${ronde}`}; }
     if(['p1','p2','p3','p4'].includes(c.key)){
       const p = per['periode'+c.key.slice(1)];
       if(p) title = `title="Ronde ${p.van} t/m ${p.tot}"`;
@@ -114,8 +109,7 @@ function renderStand(){
   rows.forEach((r,i)=>{
     html += `<tr style="cursor:pointer" data-goto-team="${r.team.key}">
       <td>${i+1}</td><td><b>${esc(r.team.teamnaam)}</b></td><td class="muted">${esc(r.team.speler)}</td>
-      <td class="pts">${r.live}</td><td>${r.orig??'-'}</td>
-      <td class="${r.diff===0?'diffzero':(r.diff===null?'muted':'diffnonzero')}">${r.diff===null?'-':r.diff}</td>
+      <td class="pts">${r.live}</td>
       <td>${r.p1??'-'}</td><td>${r.p2??'-'}</td><td>${r.p3??'-'}</td><td>${r.p4??'-'}</td>
       <td><b>${r.totaal??'-'}</b></td></tr>`;
   });
