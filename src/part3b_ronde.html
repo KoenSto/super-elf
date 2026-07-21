@@ -87,7 +87,7 @@ function renderMatchCard(ronde, m, mi){
   div.innerHTML = `
     <div class="match-head">
       <select data-r="${ronde}" data-m="${mi}" data-field="clubThuis">${clubOpts(m.clubThuis)}</select>
-      <div class="score" title="De teamscore wordt automatisch berekend uit de goals en eigen doelpunten van de spelers hieronder.">
+      <div class="score" title="De teamscore wordt automatisch berekend uit de goals, gescoorde penalty's en eigen doelpunten van de spelers hieronder.">
         <span class="score-num">${m.uitslagThuis||0}</span>
         <span>-</span>
         <span class="score-num">${m.uitslagUit||0}</span>

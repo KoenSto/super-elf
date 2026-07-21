@@ -33,11 +33,13 @@ function berekenPunten(positie, resultaat, ev){
   return p;
 }
 // Teamscore wordt afgeleid uit de spelersgegevens (niet meer los handmatig invulbaar), om
-// verschil tussen ingevulde goals en de eindstand te voorkomen: elke "goal" van een speler
-// telt voor zijn eigen team, elk "eigen doelpunt" telt juist voor de tegenstander.
+// verschil tussen ingevulde goals en de eindstand te voorkomen: elke "goal" én elke gescoorde
+// penalty ("pen_scoren") van een speler telt voor zijn eigen team, elk "eigen doelpunt" telt
+// juist voor de tegenstander. Een gemiste of gestopte penalty levert geen doelpunt op.
+function golenVanSpeler(sp){ return (Number(sp.goal)||0) + (Number(sp.pen_scoren)||0); }
 function berekenUitslagVanWedstrijd(m){
-  const golsThuis = m.spelersThuis.reduce((s,sp)=>s+(Number(sp.goal)||0),0) + m.spelersUit.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
-  const golsUit = m.spelersUit.reduce((s,sp)=>s+(Number(sp.goal)||0),0) + m.spelersThuis.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
+  const golsThuis = m.spelersThuis.reduce((s,sp)=>s+golenVanSpeler(sp),0) + m.spelersUit.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
+  const golsUit = m.spelersUit.reduce((s,sp)=>s+golenVanSpeler(sp),0) + m.spelersThuis.reduce((s,sp)=>s+(Number(sp.eigen_doelpunt)||0),0);
   return {thuis: golsThuis, uit: golsUit};
 }
 function syncUitslag(m){
