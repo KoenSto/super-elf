@@ -42,18 +42,40 @@ function seizoenTotaal(team){
   if(team.tsId!==undefined) return origineelTotaal(team);
   return liveTotaalOverRondes(team, 1, 34);
 }
-function computeFormatie(basis){
+// Alle spelers die dit team NU daadwerkelijk heeft opgesteld: de oorspronkelijke basisspelers die nog
+// niet zelf weer vervangen zijn, plus alle wissel-spelers die nog niet zelf weer vervangen zijn. Beide
+// soorten records krijgen "laatste_ronde: null" zolang ze actief zijn; zodra iemand wordt uitgewisseld
+// wordt dat veld gezet op de laatste ronde dat hij nog meetelde (zie addWissel), zonder het record te
+// verwijderen — zo blijft de scoregeschiedenis van iedereen die dit seizoen ooit in het team stond intact.
+function isActieveSpeler(p){ return p.laatste_ronde===null || p.laatste_ronde===undefined; }
+function getActieveSpelers(team){
+  const basisActief = team.basis.map((b,i)=>({...b, _bron:'basis', _idx:i})).filter(isActieveSpeler);
+  const wisselsActief = team.wissels.map((w,i)=>({...w, _bron:'wissel', _idx:i})).filter(isActieveSpeler);
+  return basisActief.concat(wisselsActief);
+}
+function getInactieveSpelers(team){
+  const basisInactief = team.basis.map((b,i)=>({...b, _bron:'basis', _idx:i})).filter(p=>!isActieveSpeler(p));
+  const wisselsInactief = team.wissels.map((w,i)=>({...w, _bron:'wissel', _idx:i})).filter(p=>!isActieveSpeler(p));
+  return basisInactief.concat(wisselsInactief);
+}
+function computeFormatie(team){
   const c = {K:0,V:0,M:0,A:0};
-  basis.forEach(b=>{ if(c[b.positie]!==undefined) c[b.positie]++; });
+  getActieveSpelers(team).forEach(b=>{ if(c[b.positie]!==undefined) c[b.positie]++; });
   return `${c.V}-${c.M}-${c.A}`;
 }
+// Budget-11 en reservebank-waarde gaan alleen over spelers die NU nog echt actief staan (een
+// vervangen speler telt niet meer mee voor het budget van zijn oude plek — dat budget komt weer vrij
+// zodra hij wordt uitgewisseld). Basis-oorsprong en wissel-oorsprong blijven twee gescheiden potjes,
+// want alleen de basis-11 heeft een harde budgetcap; wissels hebben een eigen (onbeperkt) budget.
 function computeBudget(team){
-  const basisGebruikt = team.basis.reduce((s,p)=>s+(p.prijs||0),0);
-  const wisselsGebruikt = team.wissels.reduce((s,p)=>s+(p.prijs||0),0);
+  const actief = getActieveSpelers(team);
+  const basisGebruikt = actief.filter(p=>p._bron==='basis').reduce((s,p)=>s+(p.prijs||0),0);
+  const wisselsGebruikt = actief.filter(p=>p._bron==='wissel').reduce((s,p)=>s+(p.prijs||0),0);
   return {
     basisGebruikt, wisselsGebruikt, totaalGebruikt: basisGebruikt+wisselsGebruikt,
     resterend: DATA.spelregels.budget - basisGebruikt,
-    aantal: team.basis.length + team.wissels.length
+    overBudget: basisGebruikt > DATA.spelregels.budget,
+    aantal: actief.length
   };
 }
 function getSpelerPuntenInRonde(ronde, naam){
@@ -67,9 +89,17 @@ function getSpelerPuntenInRonde(ronde, naam){
   }
   return null;
 }
+// Telt de score van elk basis-/wisselrecord alleen mee binnen zijn eigen actieve periode
+// (vanaf_ronde t/m laatste_ronde, waarbij "nog niet gezet" betekent: t/m einde seizoen). Zo stoppen de
+// punten van een vervangen speler precies op het moment van de wissel, telt de nieuwe speler pas vanaf
+// die ronde mee, en telt een speler die later weer wordt terug gewisseld (twee losse records voor
+// dezelfde naam, met niet-overlappende periodes) in elke ronde maar één keer mee.
 function liveTotaalRonde(team, ronde){
   let total = 0, gevonden = 0;
   team.basis.concat(team.wissels).forEach(p=>{
+    const van = p.vanaf_ronde || 1;
+    const tot = (p.laatste_ronde===null || p.laatste_ronde===undefined) ? 34 : p.laatste_ronde;
+    if(ronde<van || ronde>tot) return;
     const pts = getSpelerPuntenInRonde(ronde, p.naam);
     if(pts!==null){ total += pts; gevonden++; }
   });
@@ -109,8 +139,8 @@ function addBasisSpeler(teamKey, club, naam){
   const p = STATE.players.find(pl=>pl.club===club && pl.naam===naam);
   if(!p){ alert('Kies een geldige speler.'); return; }
   const team = STATE.teams[teamKey];
-  if(team.basis.some(b=>b.naam===naam)){ alert('Deze speler staat al in de basisopstelling.'); return; }
-  team.basis.push({club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{}, sinds_ronde:null, mogelijke_wissel:false});
+  if(getActieveSpelers(team).some(x=>x.naam===naam)){ alert('Deze speler staat al in de basisopstelling.'); return; }
+  team.basis.push({club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{}, vanaf_ronde:1, laatste_ronde:null});
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeBasisSpeler(teamKey, idx){
@@ -128,23 +158,27 @@ function addWissel(teamKey, club, naam, vanafRonde, uitNaam, type){
   const p = STATE.players.find(pl=>pl.club===club && pl.naam===naam);
   if(!p){ alert('Kies een geldige speler om in te wisselen.'); return; }
   const team = STATE.teams[teamKey];
-  if(team.wissels.some(w=>w.naam===naam) || team.basis.some(b=>b.naam===naam)){ alert('Deze speler staat al in dit team.'); return; }
+  const actief = getActieveSpelers(team);
+  if(actief.some(x=>x.naam===naam)){ alert('Deze speler staat al in dit team.'); return; }
   if(!WISSEL_TYPES[type]) type = 'regulier';
+  const ronde = Number(vanafRonde) || STATE.huidigeRonde;
 
   let vervangenSpeler = null;
-  if(team.basis.length>0){
-    if(!uitNaam){ alert('Kies welke speler uit de basiself wordt gewisseld.'); return; }
-    const uitIdx = team.basis.findIndex(b=>b.naam===uitNaam);
-    if(uitIdx===-1){ alert('De geselecteerde uit-speler is niet (meer) gevonden in de basis.'); return; }
-    vervangenSpeler = team.basis[uitIdx];
-    team.basis.splice(uitIdx,1);
+  if(actief.length>0){
+    if(!uitNaam){ alert('Kies welke speler uit de basisopstelling wordt gewisseld.'); return; }
+    const uitEntry = actief.find(x=>x.naam===uitNaam);
+    if(!uitEntry){ alert('De geselecteerde uit-speler is niet (meer) actief in dit team.'); return; }
+    // Sluit de actieve periode van de uitgaande speler af op de ronde vóór deze wissel: zijn punten
+    // blijven zo meetellen t/m die ronde, maar niet meer daarna (zie liveTotaalRonde hierboven).
+    const bron = uitEntry._bron==='basis' ? team.basis : team.wissels;
+    bron[uitEntry._idx].laatste_ronde = ronde - 1;
+    vervangenSpeler = uitEntry;
   }
 
   const volgnr = team.wissels.length ? Math.max(...team.wissels.map(w=>w.volgnr||0))+1 : 1;
-  const ronde = Number(vanafRonde) || STATE.huidigeRonde;
   team.wissels.push({
     volgnr, club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{},
-    vanaf_ronde: ronde, laatste_ronde: 34, handmatig:true, type,
+    vanaf_ronde: ronde, laatste_ronde: null, handmatig:true, type,
     vervangenSpeler: vervangenSpeler ? {naam:vervangenSpeler.naam, club:vervangenSpeler.club, positie:vervangenSpeler.positie, prijs:vervangenSpeler.prijs} : null
   });
   STATE.wisselLog.push({
@@ -163,6 +197,10 @@ function removeWissel(teamKey, idx){
   team.wissels.splice(idx,1);
   saveState(); buildTeamList(); renderTeamDetail();
 }
+function removeActieveSpeler(teamKey, bron, idx){
+  if(bron==='basis') removeBasisSpeler(teamKey, idx);
+  else removeWissel(teamKey, idx);
+}
 function removeWisselLogEntry(idx){
   if(blokkeerAlsKijker()) return;
   STATE.wisselLog.splice(idx,1);
@@ -176,9 +214,17 @@ const pendingWisselClub = {}, pendingWisselSpeler = {}, pendingWisselRonde = {},
 function clubOptionsHTML(selected){
   return DATA.clubs.map(c=>`<option value="${esc(c)}" ${c===selected?'selected':''}>${esc(c)}</option>`).join('');
 }
+// Spelerskeuze met dezelfde pastelkleur-arcering per positie als bij Speelronde, zowel op de losse
+// <option>-elementen als (via playerSelectStijl) op het gesloten select-veld zelf.
 function playerOptionsHTML(club, selectedNaam){
   const list = playersOfClub(club);
-  return list.map(p=>`<option value="${esc(p.naam)}" ${p.naam===selectedNaam?'selected':''}>${esc(p.naam)} (${p.positie}, ${fmtGeld(p.prijs)})</option>`).join('');
+  return list.map(p=>
+    `<option value="${esc(p.naam)}" style="background-color:var(--pos${p.positie}-bg);color:var(--pos${p.positie}-text);" ${p.naam===selectedNaam?'selected':''}>${esc(p.naam)} (${p.positie}, ${fmtGeld(p.prijs)})</option>`
+  ).join('');
+}
+function playerSelectStijl(club, selectedNaam){
+  const speler = playersOfClub(club).find(p=>p.naam===selectedNaam);
+  return speler ? `background-color:var(--pos${speler.positie}-bg);color:var(--pos${speler.positie}-text);font-weight:600;` : '';
 }
 
 /* ============ TAB: Teams ============ */
@@ -230,46 +276,36 @@ function renderTeamDetail(){
   const team = TEAM_LIST.find(t=>t.key===selectedTeamKey);
   if(!team){ el.innerHTML=''; return; }
   const budget = computeBudget(team);
-  const formatie = computeFormatie(team.basis);
+  const formatie = computeFormatie(team);
   const ronde = STATE.huidigeRonde;
   const live = liveTotaalRonde(team, ronde);
 
-  const posOrder = {K:0,V:1,M:2,A:3};
-  const basisSorted = team.basis.map((b,i)=>({...b,_idx:i})).sort((a,b)=>posOrder[a.positie]-posOrder[b.positie]);
+  const actieveSpelers = getActieveSpelers(team);
 
-  const basisRows = basisSorted.map(b=>{
+  // Twee spelers van dezelfde club mogen niet samen actief in de opstelling staan. Bij een wissel mag
+  // een speler van diezelfde club er wel weer voor in de plaats komen (er staat dan nog steeds maar
+  // één van die club), maar zodra er per ongeluk toch twee actief staan, vallen die rijen op in rood.
+  const clubTelling = {};
+  actieveSpelers.forEach(p=>{ clubTelling[p.club] = (clubTelling[p.club]||0)+1; });
+  const dubbeleClubs = new Set(Object.entries(clubTelling).filter(([,n])=>n>1).map(([c])=>c));
+
+  const posOrder = {K:0,V:1,M:2,A:3};
+  const actiefSorted = [...actieveSpelers].sort((a,b)=>posOrder[a.positie]-posOrder[b.positie] || a.naam.localeCompare(b.naam));
+
+  const basisRows = actiefSorted.map(b=>{
     const lp = getSpelerPuntenInRonde(ronde, b.naam);
-    return `<tr><td style="border-left:4px solid ${posLineColor(b.positie)};"><span class="badge ${b.positie}">${b.positie}</span></td><td>${esc(b.naam)}</td><td class="muted">${esc(b.club)}</td>
+    const foutRij = dubbeleClubs.has(b.club);
+    const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde} (wissel)` : 'vanaf start';
+    return `<tr${foutRij ? ' class="row-error" title="Twee spelers van dezelfde club mogen niet samen in de basisopstelling staan."' : ''}>
+      <td style="border-left:4px solid ${posLineColor(b.positie)};"><span class="badge ${b.positie}">${b.positie}</span></td>
+      <td>${esc(b.naam)}</td>
+      <td class="muted">${esc(b.club)}${foutRij ? ' <span class="flag flag-danger">dubbele club</span>' : ''}</td>
       <td class="muted">${fmtGeld(b.prijs)}</td>
-      <td>${b.mogelijke_wissel ? `<span class="flag">mogelijk gewisseld ~ronde ${b.sinds_ronde}</span>` : '<span class="muted small">vanaf start</span>'}</td>
+      <td class="muted small">${statusTekst}</td>
       <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}</td>
-      <td>${canEdit() ? `<span class="close-btn" title="verwijder uit basis" data-remove-basis="${team.key}" data-remove-basis-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
+      <td>${canEdit() ? `<span class="close-btn" title="verwijder uit opstelling" data-remove-actief="${team.key}" data-remove-actief-bron="${b._bron}" data-remove-actief-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7" class="muted">Nog geen basisspelers. Voeg ze hieronder toe.</td></tr>';
 
-  const wisselRows = team.wissels.map((w,i)=>{
-    const lp = getSpelerPuntenInRonde(ronde, w.naam);
-    let geschat = w.handmatig ? `vanaf ronde ${w.vanaf_ronde}` :
-      (w.vanaf_ronde===1 ? 'vanaf competitiestart' : `geschat vanaf ronde ${w.vanaf_ronde??'?'}`);
-    if(!w.handmatig && w.laatste_ronde && w.laatste_ronde<34) geschat += ` t/m ronde ${w.laatste_ronde} (mogelijk later zelf vervangen)`;
-    const typeInfo = w.type ? WISSEL_TYPES[w.type] : null;
-    const typeBadge = typeInfo ? `<span class="${typeInfo.badge||'pill'}" style="font-size:10px;">${typeInfo.telt_mee?'regulier':'vrij (transfer)'}</span>` : '<span class="muted small">–</span>';
-    return `<tr><td style="border-left:4px solid ${posLineColor(w.positie)};">#${w.volgnr}</td><td><span class="badge ${w.positie}">${w.positie}</span></td><td>${esc(w.naam)}</td><td class="muted">${esc(w.club)}</td>
-      <td class="muted">${fmtGeld(w.prijs)}</td><td class="small muted">${geschat}</td><td>${typeBadge}</td>
-      <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}</td>
-      <td>${canEdit() ? `<span class="close-btn" title="verwijder wissel" data-remove-wissel="${team.key}" data-remove-wissel-idx="${i}">✕</span>` : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="9" class="muted">Geen wissels gebruikt.</td></tr>';
-
-  const pbClub = pendingBasisClub[team.key] || DATA.clubs[0];
-  const pbSpeler = pendingBasisSpeler[team.key] || (playersOfClub(pbClub)[0] && playersOfClub(pbClub)[0].naam) || '';
-  const pwClub = pendingWisselClub[team.key] || DATA.clubs[0];
-  const pwSpeler = pendingWisselSpeler[team.key] || (playersOfClub(pwClub)[0] && playersOfClub(pwClub)[0].naam) || '';
-  const pwRonde = pendingWisselRonde[team.key] || ronde;
-  const pwUit = pendingWisselUit[team.key] || (team.basis[0] && team.basis[0].naam) || '';
-  const pwType = pendingWisselType[team.key] || 'regulier';
-  const uitOptionsHTML = team.basis.map(b=>`<option value="${esc(b.naam)}" ${b.naam===pwUit?'selected':''}>${esc(b.naam)} (${b.positie}, ${esc(b.club)})</option>`).join('');
-  const typeOptionsHTML = Object.entries(WISSEL_TYPES).map(([k,v])=>`<option value="${k}" ${k===pwType?'selected':''}>${v.label}</option>`).join('');
-  const regulierGebruikt = team.wissels.filter(w=>!w.type || WISSEL_TYPES[w.type].telt_mee).length;
-  const vrijGebruikt = team.wissels.filter(w=>w.type && !WISSEL_TYPES[w.type].telt_mee).length;
   const wisselLogRows = STATE.wisselLog.map((l,i)=>({l,i})).filter(x=>x.l.teamKey===team.key).sort((a,b)=>(b.l.ronde-a.l.ronde)).map(({l,i})=>{
     const typeInfo = l.type ? WISSEL_TYPES[l.type] : WISSEL_TYPES.regulier;
     return `<tr><td>Ronde ${l.ronde}</td><td>${l.uit ? esc(l.uit.naam)+' <span class="muted small">('+esc(l.uit.club)+')</span>' : '<span class="muted">–</span>'}</td>
@@ -278,6 +314,18 @@ function renderTeamDetail(){
       <td>${canEdit() ? `<span class="close-btn" title="verwijder logregel" data-remove-wissellog="${i}">✕</span>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="6" class="muted">Nog geen wissels gelogd voor dit team.</td></tr>';
 
+  const pbClub = pendingBasisClub[team.key] || DATA.clubs[0];
+  const pbSpeler = pendingBasisSpeler[team.key] || (playersOfClub(pbClub)[0] && playersOfClub(pbClub)[0].naam) || '';
+  const pwClub = pendingWisselClub[team.key] || DATA.clubs[0];
+  const pwSpeler = pendingWisselSpeler[team.key] || (playersOfClub(pwClub)[0] && playersOfClub(pwClub)[0].naam) || '';
+  const pwRonde = pendingWisselRonde[team.key] || ronde;
+  const pwUit = pendingWisselUit[team.key] || (actieveSpelers[0] && actieveSpelers[0].naam) || '';
+  const pwType = pendingWisselType[team.key] || 'regulier';
+  const uitOptionsHTML = actieveSpelers.map(b=>`<option value="${esc(b.naam)}" ${b.naam===pwUit?'selected':''}>${esc(b.naam)} (${b.positie}, ${esc(b.club)})</option>`).join('');
+  const typeOptionsHTML = Object.entries(WISSEL_TYPES).map(([k,v])=>`<option value="${k}" ${k===pwType?'selected':''}>${v.label}</option>`).join('');
+  const regulierGebruikt = team.wissels.filter(w=>!w.type || WISSEL_TYPES[w.type].telt_mee).length;
+  const vrijGebruikt = team.wissels.filter(w=>w.type && !WISSEL_TYPES[w.type].telt_mee).length;
+
   el.innerHTML = `<div class="panel">
     <span class="close-btn" id="closeTeamDetail">✕ sluiten</span>
     <h2>${esc(team.teamnaam)} <span class="muted small">— ${esc(team.speler)}</span>
@@ -285,31 +333,31 @@ function renderTeamDetail(){
     </h2>
     <div class="row" style="margin-bottom:10px;">
       <span class="pill">Formatie: <b>${formatie}</b></span>
-      <span class="pill">Budget basis-11: <b>${fmtGeld(budget.basisGebruikt)}</b> / ${fmtGeld(DATA.spelregels.budget)}</span>
+      <span class="pill${budget.overBudget?' pill-danger':''}" ${budget.overBudget?'title="Budget basis-11 overschreden!"':''}>Budget basis-11: <b>${fmtGeld(budget.basisGebruikt)}</b> / ${fmtGeld(DATA.spelregels.budget)}${budget.overBudget?' <span class="flag flag-danger">over budget</span>':''}</span>
       <span class="pill">Resterend (basis): <b>${fmtGeld(budget.resterend)}</b></span>
       <span class="pill">Waarde reservebank: <b>${fmtGeld(budget.wisselsGebruikt)}</b> <span class="muted small">(apart budget bij wissel)</span></span>
       <span class="pill">Wissels: <b>${regulierGebruikt}/${maxWisselsVoorRonde(ronde)}</b> regulier${vrijGebruikt>0?` + <b>${vrijGebruikt}</b> vrij (transfer)`:''}</span>
       <span class="pill">Seizoenstotaal: <b>${seizoenTotaal(team)??'-'}</b></span>
     </div>
+    ${dubbeleClubs.size>0 ? `<div class="note">Deze opstelling heeft twee spelers van dezelfde club (<b>${[...dubbeleClubs].map(esc).join(', ')}</b>) tegelijk actief staan — hieronder in het rood aangegeven. Dat mag niet: haal er één van uit of wissel hem.</div>` : ''}
     <div class="note">
-      Ronde ${ronde}: met de <b>huidige selectie</b> toegepast op de wedstrijdgegevens van die ronde komt dit team op <b class="pts">${live.total}</b> punten (${live.gevonden}/${team.basis.length+team.wissels.length} spelers gevonden).
+      Ronde ${ronde}: met de <b>huidige selectie</b> toegepast op de wedstrijdgegevens van die ronde komt dit team op <b class="pts">${live.total}</b> punten (${live.gevonden}/${actieveSpelers.length} spelers gevonden).
     </div>
     <h3>Basisopstelling</h3>
     <table><thead><tr><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Status</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${basisRows}</tbody></table>
     ${canEdit() ? `<div class="row" style="margin-top:8px;">
       <select data-newbasis-club="${team.key}">${clubOptionsHTML(pbClub)}</select>
-      <select data-newbasis-speler="${team.key}">${playerOptionsHTML(pbClub, pbSpeler)}</select>
+      <select data-newbasis-speler="${team.key}" style="${playerSelectStijl(pbClub, pbSpeler)}">${playerOptionsHTML(pbClub, pbSpeler)}</select>
       <button class="btn small primary" data-add-basis="${team.key}">+ speler toevoegen aan basis</button>
     </div>` : ''}
 
-    <h3 style="margin-top:18px;">Reservebank / wissels (max ${maxWisselsVoorRonde(ronde)} regulier + evt. vrije wissels bij transfer)</h3>
-    <table><thead><tr><th>#</th><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Periode</th><th>Type</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${wisselRows}</tbody></table>
-    <div class="note small">Een wissel vervangt een speler uit de basisopstelling door een nieuwe speler (die op de reservebank komt). Kies wie eruit gaat, wie erin komt, vanaf welke ronde, en of het een <b>reguliere wissel</b> is (telt mee voor het maximum) of een <b>vrije wissel</b> (bijv. omdat het contract van de speler werd ontbonden/hij transfervrij werd &mdash; telt niet mee). Dit wordt exact gelogd, in tegenstelling tot het origineel bestand.</div>
+    <h3 style="margin-top:18px;">Wissel doorvoeren (max ${maxWisselsVoorRonde(ronde)} regulier + evt. vrije wissels bij transfer)</h3>
+    <div class="note small">Een wissel vervangt een speler uit de basisopstelling door een nieuwe speler. De nieuwe speler komt direct in de basisopstelling hierboven te staan; zijn punten tellen vanaf de gekozen ronde, en de punten van de vervangen speler tellen precies tot en met de ronde daarvoor &mdash; ook als diezelfde speler later weer wordt terug gewisseld.</div>
     ${canEdit() ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;">
-      ${team.basis.length>0 ? `<label class="small muted">eruit (basis) <select data-newwissel-uit="${team.key}">${uitOptionsHTML}</select></label>` : '<span class="muted small">Geen basisspelers om te wisselen &mdash; wordt direct aan de reservebank toegevoegd.</span>'}
+      ${actieveSpelers.length>0 ? `<label class="small muted">eruit (basis) <select data-newwissel-uit="${team.key}">${uitOptionsHTML}</select></label>` : '<span class="muted small">Geen basisspelers om te wisselen &mdash; wordt direct aan de basisopstelling toegevoegd.</span>'}
       <span class="muted">&rarr;</span>
       <label class="small muted">erin <select data-newwissel-club="${team.key}">${clubOptionsHTML(pwClub)}</select>
-      <select data-newwissel-speler="${team.key}">${playerOptionsHTML(pwClub, pwSpeler)}</select></label>
+      <select data-newwissel-speler="${team.key}" style="${playerSelectStijl(pwClub, pwSpeler)}">${playerOptionsHTML(pwClub, pwSpeler)}</select></label>
       <label class="small muted">vanaf ronde <input type="number" min="1" max="34" value="${pwRonde}" data-newwissel-ronde="${team.key}" style="width:50px;"></label>
       <label class="small muted">type <select data-newwissel-type="${team.key}">${typeOptionsHTML}</select></label>
       <button class="btn small primary" data-add-wissel="${team.key}">+ wissel doorvoeren</button>
@@ -328,9 +376,9 @@ function renderTeamDetail(){
 document.addEventListener('change', (e)=>{
   const t = e.target;
   if(t.dataset.newbasisClub){ pendingBasisClub[t.dataset.newbasisClub] = t.value; delete pendingBasisSpeler[t.dataset.newbasisClub]; renderTeamDetail(); }
-  else if(t.dataset.newbasisSpeler){ pendingBasisSpeler[t.dataset.newbasisSpeler] = t.value; }
+  else if(t.dataset.newbasisSpeler){ pendingBasisSpeler[t.dataset.newbasisSpeler] = t.value; renderTeamDetail(); }
   else if(t.dataset.newwisselClub){ pendingWisselClub[t.dataset.newwisselClub] = t.value; delete pendingWisselSpeler[t.dataset.newwisselClub]; renderTeamDetail(); }
-  else if(t.dataset.newwisselSpeler){ pendingWisselSpeler[t.dataset.newwisselSpeler] = t.value; }
+  else if(t.dataset.newwisselSpeler){ pendingWisselSpeler[t.dataset.newwisselSpeler] = t.value; renderTeamDetail(); }
   else if(t.dataset.newwisselRonde){ pendingWisselRonde[t.dataset.newwisselRonde] = t.value; }
   else if(t.dataset.newwisselUit){ pendingWisselUit[t.dataset.newwisselUit] = t.value; }
   else if(t.dataset.newwisselType){ pendingWisselType[t.dataset.newwisselType] = t.value; }
@@ -343,8 +391,8 @@ document.addEventListener('click', (e)=>{
     const naam = pendingBasisSpeler[key] || (playersOfClub(club)[0] && playersOfClub(club)[0].naam);
     addBasisSpeler(key, club, naam);
   }
-  if(t.dataset.removeBasis!==undefined){
-    removeBasisSpeler(t.dataset.removeBasis, Number(t.dataset.removeBasisIdx));
+  if(t.dataset.removeActief!==undefined){
+    removeActieveSpeler(t.dataset.removeActief, t.dataset.removeActiefBron, Number(t.dataset.removeActiefIdx));
   }
   if(t.dataset.addWissel){
     const key = t.dataset.addWissel;
@@ -352,12 +400,10 @@ document.addEventListener('click', (e)=>{
     const naam = pendingWisselSpeler[key] || (playersOfClub(club)[0] && playersOfClub(club)[0].naam);
     const ronde = pendingWisselRonde[key] || STATE.huidigeRonde;
     const team = STATE.teams[key];
-    const uitNaam = team && team.basis.length>0 ? (pendingWisselUit[key] || (team.basis[0] && team.basis[0].naam)) : null;
+    const actieveSpelers = team ? getActieveSpelers(team) : [];
+    const uitNaam = actieveSpelers.length>0 ? (pendingWisselUit[key] || (actieveSpelers[0] && actieveSpelers[0].naam)) : null;
     const type = pendingWisselType[key] || 'regulier';
     addWissel(key, club, naam, ronde, uitNaam, type);
-  }
-  if(t.dataset.removeWissel!==undefined){
-    removeWissel(t.dataset.removeWissel, Number(t.dataset.removeWisselIdx));
   }
   if(t.dataset.removeWissellog!==undefined){
     removeWisselLogEntry(Number(t.dataset.removeWissellog));
