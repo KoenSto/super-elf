@@ -639,6 +639,30 @@ async function main(){
   console.log('93) normaliseState() repareert dit meteen bij het laden: geen dubbeltelling meer:', rt2.na === rt2.punten);
   console.log('94) Na reparatie start de tweede (voorheen overlappende) periode netjes ná het einde van de eerste periode (ronde 24), i.p.v. weer bij ronde 22:', rt2.periodes.some(p=>p.tot===23) && rt2.periodes.some(p=>p.tot===null && p.vanaf===24));
 
+  // Teams-tab: de #teamsRondeSelect-dropdown moet niet alleen de PUNTEN van een andere ronde tonen,
+  // maar ook WELKE SPELERS er in die ronde daadwerkelijk in de basisopstelling stonden (een historisch
+  // "kijkvenster"), zodat je bijv. ronde 1 kunt bekijken en de oorspronkelijke speler ziet, ook al is
+  // hij inmiddels via een wissel vervangen. Hergebruikt Team Periodetest (__ptKey): speler A stond van
+  // ronde 1 t/m 31, speler B alleen in ronde 32, en daarna staat speler A er via de terug-wissel weer in.
+  // Let op: de rest van het teamdetail (o.a. de "erin"-dropdown bij Wissel doorvoeren) toont alle
+  // spelers van een club, dus we mogen alleen de <tbody> van de Basisopstelling-tabel zelf controleren
+  // — anders lijkt de andere speler "aanwezig" terwijl hij alleen in een keuzelijst staat.
+  function basisTbody(fullHtml){ return fullHtml.slice(fullHtml.indexOf('<tbody>'), fullHtml.indexOf('</tbody>')); }
+
+  run(sb, "selectedTeamKey = window.__ptKey; teamsRonde = 31; renderTeamDetail();");
+  const ptTbody31 = basisTbody(get(sb, "document.getElementById('teamDetail').innerHTML"));
+  console.log('95) Ronde 31 in de Basisopstelling toont nog speler A (nog niet vervangen), niet speler B:', ptTbody31.includes(get(sb,'esc(window.__ptSpelerA)')) && !ptTbody31.includes(get(sb,'esc(window.__ptSpelerB)')));
+
+  run(sb, "teamsRonde = 32; renderTeamDetail();");
+  const ptTbody32 = basisTbody(get(sb, "document.getElementById('teamDetail').innerHTML"));
+  console.log('96) Ronde 32 (wisselronde) in de Basisopstelling toont speler B i.p.v. speler A:', ptTbody32.includes(get(sb,'esc(window.__ptSpelerB)')) && !ptTbody32.includes(get(sb,'esc(window.__ptSpelerA)')));
+
+  run(sb, "teamsRonde = 33; renderTeamDetail();");
+  const ptFull33 = get(sb, "document.getElementById('teamDetail').innerHTML");
+  const ptTbody33 = basisTbody(ptFull33);
+  console.log('97) Ronde 33 (terug-wissel) in de Basisopstelling toont weer speler A i.p.v. speler B:', ptTbody33.includes(get(sb,'esc(window.__ptSpelerA)')) && !ptTbody33.includes(get(sb,'esc(window.__ptSpelerB)')));
+  console.log('98) De ✕-verwijderknop staat niet bij de (afgesloten, historische) rij van speler A in ronde 31, maar wel bij zijn huidige actieve rij in ronde 33:', !ptTbody31.includes('data-remove-actief') && ptTbody33.includes('data-remove-actief'));
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
