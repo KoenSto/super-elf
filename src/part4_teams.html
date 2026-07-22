@@ -58,6 +58,36 @@ function getInactieveSpelers(team){
   const wisselsInactief = team.wissels.map((w,i)=>({...w, _bron:'wissel', _idx:i})).filter(p=>!isActieveSpeler(p));
   return basisInactief.concat(wisselsInactief);
 }
+// Defensieve reparatie: als eenzelfde speler (naam) op een team meerdere basis-/wisselrecords heeft
+// met overlappende periodes — bijv. omdat hij ooit via "+ speler toevoegen aan basis" per ongeluk
+// opnieuw werd toegevoegd terwijl hij al eerder (en toen nog actief) op dit team stond — telden zijn
+// punten voor de overlappende rondes dubbel mee. Dit schuift zo'n te vroeg beginnende periode
+// automatisch op tot net na het einde van de vorige periode van diezelfde speler, zodat elke ronde nog
+// maar door één record geclaimd wordt en er nooit meer dubbel geteld wordt. addBasisSpeler voorkomt
+// dit voortaan zelf al (zie onder), maar deze reparatie ruimt ook al bestaande, oude data op.
+function repareerOverlappendePeriodes(team){
+  let gewijzigd = false;
+  const perNaam = {};
+  team.basis.concat(team.wissels).forEach(p=>{ (perNaam[p.naam] = perNaam[p.naam] || []).push(p); });
+  Object.values(perNaam).forEach(records=>{
+    if(records.length<2) return;
+    // Records mét einddatum (al vervangen) op hun eindronde sorteren, oudste periode eerst; een
+    // record zonder einddatum (nog actief) komt altijd als laatste, want die loopt nog door.
+    records.sort((a,b)=>{
+      const aTot = isActieveSpeler(a) ? Infinity : a.laatste_ronde;
+      const bTot = isActieveSpeler(b) ? Infinity : b.laatste_ronde;
+      return aTot - bTot;
+    });
+    let minVanaf = 1;
+    records.forEach(p=>{
+      const van = p.vanaf_ronde || 1;
+      if(van < minVanaf){ p.vanaf_ronde = minVanaf; gewijzigd = true; }
+      const tot = isActieveSpeler(p) ? 34 : p.laatste_ronde;
+      minVanaf = tot + 1;
+    });
+  });
+  return gewijzigd;
+}
 function computeFormatie(team){
   const c = {K:0,V:0,M:0,A:0};
   getActieveSpelers(team).forEach(b=>{ if(c[b.positie]!==undefined) c[b.positie]++; });
@@ -140,6 +170,14 @@ function addBasisSpeler(teamKey, club, naam){
   if(!p){ alert('Kies een geldige speler.'); return; }
   const team = STATE.teams[teamKey];
   if(getActieveSpelers(team).some(x=>x.naam===naam)){ alert('Deze speler staat al in de basisopstelling.'); return; }
+  // "+ speler toevoegen aan basis" is alleen voor spelers die dit team nog nooit heeft gehad: hun
+  // punten tellen vanaf ronde 1. Stond deze speler er al eerder op (en is hij ooit vervangen), dan
+  // moet hij terugkomen via "wissel doorvoeren" — dat zet de juiste ronde vast en voorkomt dat zijn
+  // nieuwe periode overlapt met (en dus dubbel telt met) zijn eerdere periode op dit team.
+  if(team.basis.concat(team.wissels).some(x=>x.naam===naam)){
+    alert(`${naam} heeft al eerder in dit team gestaan en is op enig moment vervangen. Gebruik "wissel doorvoeren" om hem terug te halen, zodat de puntentelling vanaf de juiste ronde weer meeloopt (en niet dubbel telt met zijn eerdere periode).`);
+    return;
+  }
   team.basis.push({club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{}, vanaf_ronde:1, laatste_ronde:null});
   saveState(); buildTeamList(); renderTeamDetail();
 }

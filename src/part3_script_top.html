@@ -158,6 +158,14 @@ function readLocalStorageState(){
 function normaliseState(state){
   if(!state) return null;
   if(state.dataVersion !== SEED_VERSION) state = migreerState(state);
+  // Repareert bij elke keer dat state wordt ingeladen (bestand, lokale opslag of Firebase) eventuele
+  // overlappende basis-/wisselperiodes per speler (zie repareerOverlappendePeriodes in de Teams-tab),
+  // zodat een eerder ontstane dubbele puntentelling ook voor al bestaande data wordt opgelost.
+  if(state.teams){
+    Object.values(state.teams).forEach(team=>{
+      if(team && Array.isArray(team.basis) && Array.isArray(team.wissels)) repareerOverlappendePeriodes(team);
+    });
+  }
   return state;
 }
 function loadState(){
