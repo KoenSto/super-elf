@@ -768,6 +768,36 @@ async function main(){
   // Opschonen: de tekst bij Speelronde verwees nog naar een allang verwijderde "bestand koppelen"-functie.
   console.log('109) De verwijzing naar het verwijderde "bestand koppelen bovenaan" bij Speelronde is weg:', !html.includes('koppel het bestand bovenaan'));
 
+  // Spelersdatabase: op verzoek een manier om op prijs te sorteren, via een klikbare "Prijs"-kolomkop
+  // (zelfde patroon als de sorteerbare kolomkoppen bij Tussenstand).
+  run(sb, `
+    STATE.players.push({club:'PrijsTestClub', naam:'PrijsTestSpelerLaag', prijs:50, positie:'A', totaal:0});
+    STATE.players.push({club:'PrijsTestClub', naam:'PrijsTestSpelerMidden', prijs:150, positie:'A', totaal:0});
+    STATE.players.push({club:'PrijsTestClub', naam:'PrijsTestSpelerHoog', prijs:300, positie:'A', totaal:0});
+    document.getElementById('spelerClubFilter').value = '';
+    document.getElementById('spelerPosFilter').value = '';
+    document.getElementById('spelerSearch').value = 'PrijsTestSpeler';
+    spelersSortKey = 'prijs'; spelersSortDir = 'asc';
+    renderSpelers();
+    window.__spelersPrijsAscHtml = document.getElementById('spelersTable').innerHTML;
+    spelersSortDir = 'desc';
+    renderSpelers();
+    window.__spelersPrijsDescHtml = document.getElementById('spelersTable').innerHTML;
+  `);
+  console.log('110) Spelersdatabase: sorteren op prijs (oplopend) via spelersSortKey="prijs" zet de goedkoopste speler bovenaan:', get(sb, `(function(){
+    const idxLaag = window.__spelersPrijsAscHtml.indexOf('PrijsTestSpelerLaag');
+    const idxMidden = window.__spelersPrijsAscHtml.indexOf('PrijsTestSpelerMidden');
+    const idxHoog = window.__spelersPrijsAscHtml.indexOf('PrijsTestSpelerHoog');
+    return idxLaag>=0 && idxLaag<idxMidden && idxMidden<idxHoog;
+  })()`));
+  console.log('111) Nogmaals op de kolomkop klikken (aflopend) keert de volgorde om, duurste speler bovenaan:', get(sb, `(function(){
+    const idxLaag = window.__spelersPrijsDescHtml.indexOf('PrijsTestSpelerLaag');
+    const idxMidden = window.__spelersPrijsDescHtml.indexOf('PrijsTestSpelerMidden');
+    const idxHoog = window.__spelersPrijsDescHtml.indexOf('PrijsTestSpelerHoog');
+    return idxHoog>=0 && idxHoog<idxMidden && idxMidden<idxLaag;
+  })()`));
+  console.log('112) De kolomkop "Prijs" is klikbaar (data-spelers-sort-key="prijs" aanwezig in de tabel):', get(sb, `window.__spelersPrijsAscHtml.includes('data-spelers-sort-key="prijs"')`));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
