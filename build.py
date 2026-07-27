@@ -27,12 +27,25 @@ teams = json.load(open(os.path.join(DATA, "teams.json"), encoding="utf-8"))
 allweeks = json.load(open(os.path.join(DATA, "allweeks.json"), encoding="utf-8"))
 tussenstand = json.load(open(os.path.join(DATA, "tussenstand.json"), encoding="utf-8"))
 
-html = html.replace("__SPELREGELS_JSON__", json.dumps(spelregels))
-html = html.replace("__CLUBS_JSON__", json.dumps(players["clubs"]))
-html = html.replace("__PLAYERS_JSON__", json.dumps(players["players"]))
-html = html.replace("__TEAMS_JSON__", json.dumps(teams))
-html = html.replace("__ALLWEEKS_JSON__", json.dumps(allweeks))
-html = html.replace("__TUSSENSTAND_JSON__", json.dumps(tussenstand))
+# json.dumps() escaped niets: als er ooit een letterlijke "</script" in een dataveld terechtkomt
+# (bijv. een spelersnaam of clubnaam die per ongeluk zo'n string bevat), zou de browser de inline
+# <script>-tag daar voortijdig afsluiten en de rest van de pagina stukmaken. Door "</" in de JSON-tekst
+# te vervangen door "<\/" (een geldige JSON/JS-escape die niets aan de waarde verandert) kan dat nooit
+# meer gebeuren, wat build.py hiermee onafhankelijk maakt van hoe schoon de brondata toevallig is.
+def dump(obj):
+    encoded = json.dumps(obj).replace("</", "<\\/")
+    # Permanente regressiecheck op alléén deze databrok (niet de hele pagina, die legitiem vol staat met
+    # echte </script>-tags): als dump() ooit kapot raakt, moet de build hier vastlopen in plaats van
+    # stilletjes een onveilige pagina op te leveren.
+    assert "</script" not in encoded.lower(), "Geëscapete data bevat nog een onveilige \"</script\" — build.py's escaping is kapot."
+    return encoded
+
+html = html.replace("__SPELREGELS_JSON__", dump(spelregels))
+html = html.replace("__CLUBS_JSON__", dump(players["clubs"]))
+html = html.replace("__PLAYERS_JSON__", dump(players["players"]))
+html = html.replace("__TEAMS_JSON__", dump(teams))
+html = html.replace("__ALLWEEKS_JSON__", dump(allweeks))
+html = html.replace("__TUSSENSTAND_JSON__", dump(tussenstand))
 
 os.makedirs(OUT_DIR, exist_ok=True)
 out_path = os.path.join(OUT_DIR, "index.html")

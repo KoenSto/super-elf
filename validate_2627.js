@@ -4,6 +4,21 @@ const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, 'dist', 'index.html'), 'utf8');
 const scripts = [...html.matchAll(/<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 
+// Elke check in dit bestand roept console.log('N) beschrijving:', <true|false>) aan. Voorheen werd een
+// "false" resultaat alleen zichtbaar als je de volledige log met het oog naliep — de GitHub Action zelf
+// bleef altijd groen, ook als een check faalde. Door console.log hier één keer te onderscheppen en dat
+// vaste patroon te herkennen, faalt de build (en dus de deploy) voortaan ook automatisch zodra er ooit
+// een check mislukt, zonder dat elke individuele check-regel hoeft te veranderen.
+let totaalChecks = 0, mislukteChecks = 0;
+const origConsoleLog = console.log.bind(console);
+console.log = (...args) => {
+  origConsoleLog(...args);
+  if(args.length>=2 && typeof args[0]==='string' && /^\d+\)/.test(args[0]) && typeof args[args.length-1]==='boolean'){
+    totaalChecks++;
+    if(args[args.length-1]===false) mislukteChecks++;
+  }
+};
+
 function makeEl(initial){ return { innerHTML:'', value:'', textContent: initial!==undefined?initial:'', children:[], className:'', dataset:{}, style:{}, disabled:false,
   addEventListener(){}, appendChild(c){this.children.push(c);}, scrollIntoView(){}, querySelectorAll(){return [];}, querySelector(){return null;}, classList:{toggle(){},add(){},remove(){}} }; }
 
@@ -695,6 +710,69 @@ async function main(){
   console.log('102) Twee gelijknamige spelers bij verschillende clubs: met club erbij krijgt elk zijn eigen score (niet die van de ander):', get(sb, "window.__botsingA !== window.__botsingB && window.__botsingA === berekenPunten('M','winst',{goal:1,assist:0}) && window.__botsingB === berekenPunten('M','gelijk',{goal:0,assist:1})"));
   console.log('103) Zonder club (bestaand gedrag) valt dit terug op de eerst gevonden speler met die naam:', get(sb, "window.__botsingFallback === window.__botsingA"));
 
-  console.log('ALLES OK');
+  // Diezelfde naamgenoten-botsing mag ook de aggregatie in Statistieken niet verstoren: aggregeerPerSpeler
+  // moet deze twee spelers apart houden (elk hun eigen club en score) zolang er geen transfer voor die
+  // naam gelogd staat. Zodra die er wél is (een legitieme transfer, geen botsing) moeten hun beurten juist
+  // wél weer samengevoegd worden tot één rij, zoals altijd al het geval was voor getransfereerde spelers.
+  run(sb, `
+    STATE.players.push({club:'BotsingClubA', naam:'Naamgenoot', prijs:1, positie:'M', totaal:0});
+    STATE.players.push({club:'BotsingClubB', naam:'Naamgenoot', prijs:1, positie:'M', totaal:0});
+    window.__statsAgg = aggregeerPerSpeler(alleSpelerBeurten());
+    window.__statsBotsingA = window.__statsAgg.find(a=>a.naam==='Naamgenoot' && a.club==='BotsingClubA');
+    window.__statsBotsingB = window.__statsAgg.find(a=>a.naam==='Naamgenoot' && a.club==='BotsingClubB');
+  `);
+  console.log('104) Statistieken: twee naamgenoten bij verschillende clubs (geen transfer) worden apart geaggregeerd, elk met hun eigen club en score:', get(sb, "window.__statsAgg.filter(a=>a.naam==='Naamgenoot').length===2 && window.__statsBotsingA && window.__statsBotsingB && window.__statsBotsingA.goals===1 && window.__statsBotsingB.assists===1 && window.__statsBotsingA.punten!==window.__statsBotsingB.punten"));
+
+  run(sb, `
+    STATE.transferLog.push({naam:'Naamgenoot', vanClub:'BotsingClubA', naarClub:'BotsingClubB', positie:'M', prijs:1, ronde:30, tijdstip:0});
+    window.__statsAggMetTransfer = aggregeerPerSpeler(alleSpelerBeurten());
+  `);
+  console.log('105) Zodra er wél een transfer gelogd staat voor die naam, worden de beurten weer samengevoegd tot één rij (bestaand gedrag voor legitieme transfers):', get(sb, "window.__statsAggMetTransfer.filter(a=>a.naam==='Naamgenoot').length===1"));
+
+  // Spelersdatabase: de kolom "Totaal" liet altijd 0 zien, omdat p.totaal nooit werd bijgehouden. Die
+  // moet nu de echte, live berekende fantasy-score van het seizoen tonen (dezelfde berekening als het
+  // Statistieken-tabblad).
+  run(sb, `
+    const rdSpelersTest = ensureRonde(20);
+    rdSpelersTest.matches = [{clubThuis:'SpelersTestClub', clubUit:'SpelersTegenstander', uitslagThuis:2, uitslagUit:0,
+      spelersThuis:[{naam:'TotaalTestSpeler', positie:'A', goal:2, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
+    STATE.players.push({club:'SpelersTestClub', naam:'TotaalTestSpeler', prijs:1, positie:'A', totaal:0});
+    document.getElementById('spelerClubFilter').value = '';
+    document.getElementById('spelerPosFilter').value = '';
+    document.getElementById('spelerSearch').value = 'TotaalTestSpeler';
+    renderSpelers();
+    window.__spelersTestHtml = document.getElementById('spelersTable').innerHTML;
+    window.__spelersTestVerwacht = berekenPunten('A','winst',{goal:2,assist:0});
+  `);
+  console.log('106) Spelersdatabase: de kolom "Totaal" toont nu de echte, live fantasy-score van een speler i.p.v. altijd 0:', get(sb, "window.__spelersTestVerwacht > 0 && window.__spelersTestHtml.includes('>'+window.__spelersTestVerwacht+'</td></tr>')"));
+
+  // Team-detail "Seizoensverloop"-sparkline: team.totaal_weken werd nergens bijgehouden (bleef altijd
+  // {}), dus de sparkline liet altijd een lege/vlakke grafiek zien. Nu wordt hij live berekend, ronde
+  // voor ronde, met liveTotaalRonde() — net als de rest van het tabblad.
+  run(sb, `
+    addTeam('SparklineSpeler', 'Team Sparklinetest');
+    window.__sparkKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Sparklinetest');
+    const rdSpark = ensureRonde(25);
+    rdSpark.matches = [{clubThuis:'SparkClub', clubUit:'SparkTegenstander', uitslagThuis:1, uitslagUit:0,
+      spelersThuis:[{naam:'SparkSpeler', positie:'A', goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
+    STATE.teams[window.__sparkKey].basis.push({club:'SparkClub', naam:'SparkSpeler', prijs:1, positie:'A', weken:{}, vanaf_ronde:25, laatste_ronde:25});
+    selectedTeamKey = window.__sparkKey;
+    teamsRonde = 25;
+    renderTeamDetail();
+    window.__sparkHtml = document.getElementById('teamDetail').innerHTML;
+    window.__sparkVerwacht = berekenPunten('A','winst',{goal:1,assist:0});
+  `);
+  console.log('107) De sparkline toont nu de echte score van ronde 25 (de enige ronde waarin dit team een speler had) i.p.v. altijd leeg te zijn:', get(sb, "window.__sparkHtml.includes('title=\"'+window.__sparkVerwacht+' pt\"') && window.__sparkVerwacht > 0"));
+  console.log('108) Rondes zonder actieve speler in dit team tonen "geen data" in de sparkline i.p.v. een (foutieve) score:', get(sb, `window.__sparkHtml.includes('title="geen data"')`));
+
+  // Opschonen: de tekst bij Speelronde verwees nog naar een allang verwijderde "bestand koppelen"-functie.
+  console.log('109) De verwijzing naar het verwijderde "bestand koppelen bovenaan" bij Speelronde is weg:', !html.includes('koppel het bestand bovenaan'));
+
+  if(mislukteChecks>0){
+    origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`ALLES OK (${totaalChecks}/${totaalChecks} checks geslaagd)`);
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
