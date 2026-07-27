@@ -74,7 +74,7 @@ async function main(){
   await new Promise(r=>setTimeout(r,10));
   console.log('10) na login: appRoot zichtbaar:', get(sb,"document.getElementById('appRoot').style.display")==='block');
   console.log('11) STATE.teams is leeg object (nog geen teams):', Object.keys(get(sb,'STATE.teams')).length===0);
-  console.log('12) STATE.players geladen vanuit seed (445 spelers):', get(sb,'STATE.players.length')===445);
+  console.log('12) STATE.players geladen vanuit seed (spelerslijst):', get(sb,'STATE.players.length')===get(sb,'DATA.players.length') && get(sb,'STATE.players.length')>0);
   run(sb, "addTeam('Koen','Team Koen');");
   console.log('13) team aanmaken werkt (STATE.teams heeft 1 team):', Object.keys(get(sb,'STATE.teams')).length===1);
   console.log('14) navDataBtn zichtbaar voor editor (koen):', get(sb,"document.getElementById('navDataBtn').style.display")==='');
@@ -662,6 +662,19 @@ async function main(){
   const ptTbody33 = basisTbody(ptFull33);
   console.log('97) Ronde 33 (terug-wissel) in de Basisopstelling toont weer speler A i.p.v. speler B:', ptTbody33.includes(get(sb,'esc(window.__ptSpelerA)')) && !ptTbody33.includes(get(sb,'esc(window.__ptSpelerB)')));
   console.log('98) De ✕-verwijderknop staat niet bij de (afgesloten, historische) rij van speler A in ronde 31, maar wel bij zijn huidige actieve rij in ronde 33:', !ptTbody31.includes('data-remove-actief') && ptTbody33.includes('data-remove-actief'));
+
+  // Een bijgewerkte spelerslijst (nieuwe SEED_VERSION) moet in bestaande opslag doorkomen zolang er nog
+  // niets "echts" op de oude lijst gebouwd is (geen teams, geen handmatige transfers) — anders zou een
+  // spelerslijst-update zoals vandaag geen enkel effect hebben voor iemand die de site al eens eerder
+  // opende. Zodra er wél een team of transfer is, moet de oude (mogelijk aangepaste) lijst intact blijven.
+  run(sb, `
+    window.__migGeenGebruik = migreerState({dataVersion:5, rounds:{}, teams:{}, players:[{club:'Test',naam:'OudeSpelerNietMeerInLijst',prijs:1,positie:'V',totaal:0}], wisselLog:[], transferLog:[]});
+    window.__migMetTeam = migreerState({dataVersion:5, rounds:{}, teams:{t1:{teamnaam:'X',speler:'Y',basis:[],wissels:[]}}, players:[{club:'Test',naam:'OudeSpelerNietMeerInLijst',prijs:1,positie:'V',totaal:0}], wisselLog:[], transferLog:[]});
+    window.__migMetTransfer = migreerState({dataVersion:5, rounds:{}, teams:{}, players:[{club:'Test',naam:'OudeSpelerNietMeerInLijst',prijs:1,positie:'V',totaal:0}], wisselLog:[], transferLog:[{naam:'X',vanClub:'A',naarClub:'B',ronde:1}]});
+  `);
+  console.log('99) Bij nog geen teams en geen transfers neemt een nieuwe SEED_VERSION de bijgewerkte spelerslijst gewoon over in bestaande opslag:', get(sb, "window.__migGeenGebruik.players.length === DATA.players.length && !window.__migGeenGebruik.players.some(p=>p.naam==='OudeSpelerNietMeerInLijst')"));
+  console.log('100) Zodra er al een team is, blijft de (mogelijk aangepaste) oude spelerslijst intact bij een SEED_VERSION-update:', get(sb, "window.__migMetTeam.players.length===1 && window.__migMetTeam.players[0].naam==='OudeSpelerNietMeerInLijst'"));
+  console.log('101) Zodra er al een handmatige transfer gelogd is, blijft de oude spelerslijst ook intact, zelfs zonder teams:', get(sb, "window.__migMetTransfer.players.length===1 && window.__migMetTransfer.players[0].naam==='OudeSpelerNietMeerInLijst'"));
 
   console.log('ALLES OK');
 }
