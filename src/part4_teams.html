@@ -118,16 +118,34 @@ function computeBudget(team){
     aantal: actief.length
   };
 }
-function getSpelerPuntenInRonde(ronde, naam){
+// club is optioneel maar wordt waar mogelijk meegegeven: twee spelers met exact dezelfde naam bij
+// verschillende clubs komen weinig voor, maar zonder club-check zou dit de score van de verkeerde
+// speler kunnen teruggeven zodra beiden in dezelfde ronde meespelen. Bij een club-match wordt die
+// meteen teruggegeven; zonder club (of geen match op club) valt dit terug op de eerste gelijke naam,
+// zoals voorheen.
+function getSpelerPuntenInRonde(ronde, naam, club){
   const rd = STATE.rounds[String(ronde)];
   if(!rd) return null;
+  let fallback = null;
   for(const m of rd.matches){
     const resThuis = matchResultaat(m.uitslagThuis, m.uitslagUit);
     const resUit = matchResultaat(m.uitslagUit, m.uitslagThuis);
-    for(const sp of m.spelersThuis){ if(sp.naam===naam) return berekenPunten(sp.positie,resThuis,sp); }
-    for(const sp of m.spelersUit){ if(sp.naam===naam) return berekenPunten(sp.positie,resUit,sp); }
+    for(const sp of m.spelersThuis){
+      if(sp.naam===naam){
+        const pts = berekenPunten(sp.positie,resThuis,sp);
+        if(!club || m.clubThuis===club) return pts;
+        if(fallback===null) fallback = pts;
+      }
+    }
+    for(const sp of m.spelersUit){
+      if(sp.naam===naam){
+        const pts = berekenPunten(sp.positie,resUit,sp);
+        if(!club || m.clubUit===club) return pts;
+        if(fallback===null) fallback = pts;
+      }
+    }
   }
-  return null;
+  return fallback;
 }
 // Telt de score van elk basis-/wisselrecord alleen mee binnen zijn eigen actieve periode
 // (vanaf_ronde t/m laatste_ronde, waarbij "nog niet gezet" betekent: t/m einde seizoen). Zo stoppen de
@@ -140,7 +158,7 @@ function liveTotaalRonde(team, ronde){
     const van = p.vanaf_ronde || 1;
     const tot = (p.laatste_ronde===null || p.laatste_ronde===undefined) ? 34 : p.laatste_ronde;
     if(ronde<van || ronde>tot) return;
-    const pts = getSpelerPuntenInRonde(ronde, p.naam);
+    const pts = getSpelerPuntenInRonde(ronde, p.naam, p.club);
     if(pts!==null){ total += pts; gevonden++; }
   });
   return {total, gevonden};
@@ -357,7 +375,7 @@ function renderTeamDetail(){
   const weergegevenSorted = [...weergegevenSpelers].sort((a,b)=>posOrder[a.positie]-posOrder[b.positie] || a.naam.localeCompare(b.naam));
 
   const basisRows = weergegevenSorted.map(b=>{
-    const lp = getSpelerPuntenInRonde(ronde, b.naam);
+    const lp = getSpelerPuntenInRonde(ronde, b.naam, b.club);
     const foutRij = dubbeleClubs.has(b.club);
     const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde} (wissel)` : 'vanaf start';
     // Verwijderen kan alleen voor een speler die NU nog echt actief is (een historische, al
