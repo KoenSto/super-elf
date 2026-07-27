@@ -92,7 +92,7 @@ function buildSeedRonde(nr){
   return {matches};
 }
 
-const SEED_VERSION = 5; // ophogen bij wijzigingen aan de meegeleverde seizoensdata (v5: wedstrijdschema 26-27 + periodes)
+const SEED_VERSION = 6; // ophogen bij wijzigingen aan de meegeleverde seizoensdata (v5: wedstrijdschema 26-27 + periodes; v6: bijgewerkte spelerslijst)
 
 function cloneSeedTeams(){
   return JSON.parse(JSON.stringify(DATA.teams));
@@ -131,7 +131,14 @@ function migreerState(state){
   if(!state.teams || Object.keys(state.teams).length===0){
     state.teams = cloneSeedTeams();
   }
-  if(!state.players || state.players.length===0){
+  // Een bijgewerkte spelerslijst (nieuwe/vertrokken spelers, transfers, prijswijzigingen) komt alleen aan
+  // bij bestaande opslag zolang er nog niets "echts" op die oude lijst gebouwd is: geen teams, en geen
+  // handmatige transfers/toevoegingen bij Voetbalploegen. Zodra dat wél zo is, blijft state.players
+  // ongewijzigd (anders raakt een opgestelde basisopstelling of een eerder ingevoerde transfer zijn
+  // koppeling kwijt) — een latere correctie loopt dan via de transfer/vertrek-knoppen bij Voetbalploegen.
+  const nogGeenEchtGebruik = (!state.teams || Object.keys(state.teams).length===0)
+    && (!state.transferLog || state.transferLog.length===0);
+  if(!state.players || state.players.length===0 || nogGeenEchtGebruik){
     state.players = cloneSeedPlayers();
   }
   if(!state.wisselLog) state.wisselLog = [];
