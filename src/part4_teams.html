@@ -340,6 +340,17 @@ function renderTeamsGrid(){
     grid.appendChild(card);
   });
 }
+// team.totaal_weken wordt nergens bijgehouden (blijft altijd {}), waardoor de sparkline hieronder altijd
+// leeg leek. In plaats daarvan berekenen we het seizoensverloop hier live, ronde voor ronde, met dezelfde
+// liveTotaalRonde() die de rest van het tabblad ook al gebruikt voor de puntenweergave.
+function berekenSeizoensverloop(team){
+  const weken = {};
+  for(let r=1;r<=34;r++){
+    const live = liveTotaalRonde(team, r);
+    if(live.gevonden>0) weken[r] = live.total;
+  }
+  return weken;
+}
 function sparkline(weken){
   const vals = [];
   for(let i=1;i<=34;i++) vals.push(weken[String(i)] ?? weken[i] ?? null);
@@ -455,7 +466,7 @@ function renderTeamDetail(){
     <table><thead><tr><th>Ronde</th><th>Eruit</th><th></th><th>Erin</th><th>Type</th><th></th></tr></thead><tbody>${wisselLogRows}</tbody></table>
 
     <h3 style="margin-top:18px;">Seizoensverloop (per ronde)</h3>
-    ${sparkline(team.totaal_weken)}
+    ${sparkline(berekenSeizoensverloop(team))}
   </div>`;
   document.getElementById('closeTeamDetail').addEventListener('click', ()=>{ selectedTeamKey=null; el.innerHTML=''; });
 }

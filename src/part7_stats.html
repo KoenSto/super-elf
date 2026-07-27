@@ -29,18 +29,41 @@ function alleSpelerBeurten(){
 // Een speler kan tussentijds getransfereerd zijn; voor weergave tonen we de meest actuele club
 // uit de spelersdatabase (STATE.players), met de club uit de wedstrijddata als terugval als de
 // speler daar niet (meer) instaat (bijv. na vertrek uit de competitie).
+// Twee spelers met dezelfde naam bij verschillende clubs (zonder onderlinge transfer) zijn geen
+// dezelfde persoon: in dat geval gebruiken we de club uit de wedstrijddata zelf (terugvalClub) om
+// te bepalen welke van de twee spelers bedoeld is, in plaats van zomaar de eerste treffer te pakken.
 function huidigeClubVan(naam, terugvalClub){
-  const p = STATE.players.find(pl=>pl.naam===naam);
-  return p ? p.club : terugvalClub;
+  const kandidaten = STATE.players.filter(pl=>pl.naam===naam);
+  if(kandidaten.length===0) return terugvalClub;
+  if(kandidaten.length===1) return kandidaten[0].club;
+  const heeftTransfer = (STATE.transferLog||[]).some(t=>t.naam===naam);
+  if(!heeftTransfer){
+    const match = kandidaten.find(pl=>pl.club===terugvalClub);
+    if(match) return match.club;
+  }
+  return kandidaten[0].club;
 }
 
+// Groepeer wedstrijdbeurten per speler. Normaal (en ook bij een legitiem getransfereerde speler)
+// gebeurt dit op naam. Maar als twee spelers toevallig dezelfde naam hebben bij verschillende clubs
+// en er geen transfer voor die naam gelogd staat, groeperen we per naam+club apart — anders zou de
+// ene speler ten onrechte de statistieken/punten van de andere overnemen (naamgenoten-botsing).
 function aggregeerPerSpeler(beurten){
+  const naamTelling = new Map();
+  STATE.players.forEach(p=>naamTelling.set(p.naam, (naamTelling.get(p.naam)||0)+1));
+  const transferNamen = new Set((STATE.transferLog||[]).map(t=>t.naam));
+  function sleutel(b){
+    const botst = (naamTelling.get(b.naam)||0) > 1 && !transferNamen.has(b.naam);
+    return botst ? (b.naam + '||' + b.club) : b.naam;
+  }
+
   const map = new Map();
   beurten.forEach(b=>{
-    if(!map.has(b.naam)){
-      map.set(b.naam, {naam:b.naam, positie:b.positie, club:b.club, goals:0, assists:0, geel:0, geel2:0, rood:0, cleansheets:0, eigenDoelpunt:0, penMissen:0, punten:0, wedstrijden:0});
+    const key = sleutel(b);
+    if(!map.has(key)){
+      map.set(key, {naam:b.naam, positie:b.positie, club:b.club, goals:0, assists:0, geel:0, geel2:0, rood:0, cleansheets:0, eigenDoelpunt:0, penMissen:0, punten:0, wedstrijden:0});
     }
-    const agg = map.get(b.naam);
+    const agg = map.get(key);
     agg.club = huidigeClubVan(b.naam, b.club);
     agg.positie = b.positie;
     agg.goals += golenVanSpeler(b.sp);

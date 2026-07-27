@@ -140,13 +140,34 @@ function initSpelersTab(){
   ['spelerClubFilter','spelerPosFilter','spelerSearch'].forEach(id=>document.getElementById(id).addEventListener('input', renderSpelers));
   renderSpelers();
 }
+// Haalt (via aggregeerPerSpeler/alleSpelerBeurten uit het Statistieken-tabblad, dezelfde berekening als
+// daar) de werkelijke fantasy-puntentotalen op, per speler. Bij twee gelijknamige spelers (zie de
+// naamgenoten-fix bij Statistieken) levert dit meerdere kandidaten per naam op; we kiezen dan degene bij
+// de juiste club.
+function spelerTotaalMap(){
+  const agg = aggregeerPerSpeler(alleSpelerBeurten());
+  const map = new Map();
+  agg.forEach(a=>{
+    if(!map.has(a.naam)) map.set(a.naam, []);
+    map.get(a.naam).push(a);
+  });
+  return map;
+}
+function puntenVanSpeler(map, p){
+  const kandidaten = map.get(p.naam);
+  if(!kandidaten || kandidaten.length===0) return 0;
+  if(kandidaten.length===1) return kandidaten[0].punten;
+  const match = kandidaten.find(a=>a.club===p.club);
+  return match ? match.punten : kandidaten[0].punten;
+}
 function renderSpelers(){
   const club = document.getElementById('spelerClubFilter').value;
   const pos = document.getElementById('spelerPosFilter').value;
   const q = (document.getElementById('spelerSearch').value||'').toLowerCase();
+  const totaalMap = spelerTotaalMap();
   let list = STATE.players.filter(p=>
     (!club || p.club===club) && (!pos || p.positie===pos) && (!q || p.naam.toLowerCase().includes(q))
-  );
+  ).map(p=>({...p, totaal: puntenVanSpeler(totaalMap, p)}));
   list = list.sort((a,b)=> (b.totaal||0)-(a.totaal||0));
   let html = `<table><thead><tr><th>Club</th><th>Speler</th><th>Pos</th><th>Prijs</th><th>Totaal</th></tr></thead><tbody>`;
   list.slice(0,400).forEach(p=>{
@@ -233,6 +254,13 @@ function switchTab(name){
   if(name==='clubs') renderClubSquad();
   if(name==='stats') renderStats();
   if(name==='beker') renderBeker();
+  // renderRonde() gebruikt canEdit() om o.a. de "+ speler"-knoppen te tonen. De allereerste keer dat
+  // deze tab werd opgebouwd (bij het laden van de pagina, via initRondeTab) kan dat nog vóór het
+  // inloggen bij Firebase zijn afgerond, waardoor canEdit() toen nog false was en die knoppen ten
+  // onrechte ontbraken totdat je zelf van speelronde wisselde. Door hier ook te her-renderen zodra je
+  // daadwerkelijk naar dit tabblad navigeert, staat alles gegarandeerd goed zodra je het bekijkt.
+  if(name==='ronde') renderRonde();
+  if(name==='spelers') renderSpelers();
 }
 document.getElementById('mainnav').addEventListener('click', (e)=>{
   if(e.target.dataset.tab) switchTab(e.target.dataset.tab);
