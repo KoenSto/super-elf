@@ -182,6 +182,13 @@
    "totaal": 0
   },
   {
+   "club": "ADO",
+   "naam": "Yannick Eduardo",
+   "prijs": 750000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
    "club": "Ajax",
    "naam": "Maarten Paes",
    "prijs": 2000000,
@@ -318,6 +325,13 @@
    "club": "Ajax",
    "naam": "Rayane Bounida",
    "prijs": 2250000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Ajax",
+   "naam": "Abdellah Ouazane",
+   "prijs": 2000000,
    "positie": "M",
    "totaal": 0
   },
@@ -485,13 +499,6 @@
   {
    "club": "AZ",
    "naam": "Peer Koopmeiners",
-   "prijs": 1750000,
-   "positie": "M",
-   "totaal": 0
-  },
-  {
-   "club": "AZ",
-   "naam": "Kasper Boogaard",
    "prijs": 1750000,
    "positie": "M",
    "totaal": 0
@@ -722,13 +729,6 @@
   },
   {
    "club": "Excelsior",
-   "naam": "Derensili Sanches Fernandes",
-   "prijs": 1250000,
-   "positie": "A",
-   "totaal": 0
-  },
-  {
-   "club": "Excelsior",
    "naam": "Nesto Groen",
    "prijs": 1000000,
    "positie": "A",
@@ -800,6 +800,13 @@
   {
    "club": "FC_Groningen",
    "naam": "Tyrique Mercera",
+   "prijs": 1250000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Groningen",
+   "naam": "Nikolas Brandis",
    "prijs": 1250000,
    "positie": "V",
    "totaal": 0
@@ -1198,6 +1205,13 @@
   },
   {
    "club": "FC_Utrecht",
+   "naam": "Ferdinand Pohl",
+   "prijs": 1750000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Utrecht",
    "naam": "Alonzo Engwanda",
    "prijs": 1750000,
    "positie": "M",
@@ -1276,13 +1290,6 @@
   {
    "club": "FC_Utrecht",
    "naam": "Adrian Blake",
-   "prijs": 1750000,
-   "positie": "A",
-   "totaal": 0
-  },
-  {
-   "club": "FC_Utrecht",
-   "naam": "Emirhan Demircan",
    "prijs": 1750000,
    "positie": "A",
    "totaal": 0
@@ -1485,13 +1492,6 @@
   },
   {
    "club": "Feyenoord",
-   "naam": "Hwang In Beom",
-   "prijs": 2250000,
-   "positie": "M",
-   "totaal": 0
-  },
-  {
-   "club": "Feyenoord",
    "naam": "Charles Vanhoutte",
    "prijs": 2250000,
    "positie": "M",
@@ -1536,13 +1536,6 @@
    "club": "Feyenoord",
    "naam": "Ayase Ueda",
    "prijs": 3750000,
-   "positie": "A",
-   "totaal": 0
-  },
-  {
-   "club": "Feyenoord",
-   "naam": "Calvin Stengs",
-   "prijs": 2250000,
    "positie": "A",
    "totaal": 0
   },
@@ -1703,6 +1696,13 @@
   {
    "club": "Fortuna_Sittard",
    "naam": "Ole Romeny",
+   "prijs": 1000000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "Fortuna_Sittard",
+   "naam": "Anthony Descotte",
    "prijs": 1000000,
    "positie": "A",
    "totaal": 0
@@ -2093,6 +2093,13 @@
    "totaal": 0
   },
   {
+   "club": "NEC",
+   "naam": "Clement Bischoff",
+   "prijs": 2000000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
    "club": "PEC",
    "naam": "Jasper Schendelaar",
    "prijs": 1000000,
@@ -2236,6 +2243,13 @@
    "club": "PEC",
    "naam": "Koen Kostons",
    "prijs": 1500000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "PEC",
+   "naam": "Ibrahim Cissoko",
+   "prijs": 1000000,
    "positie": "A",
    "totaal": 0
   },
@@ -2514,6 +2528,13 @@
   },
   {
    "club": "SC_Cambuur",
+   "naam": "Wiebe van der Heide",
+   "prijs": 750000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "SC_Cambuur",
    "naam": "Ilyes Hamache",
    "prijs": 750000,
    "positie": "A",
@@ -2550,6 +2571,13 @@
   {
    "club": "SC_Cambuur",
    "naam": "Nicolas Binder",
+   "prijs": 750000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "SC_Cambuur",
+   "naam": "Danyello Look",
    "prijs": 750000,
    "positie": "A",
    "totaal": 0
@@ -2684,13 +2712,6 @@
    "club": "SC_Heerenveen",
    "naam": "Jacob Trenskow",
    "prijs": 2000000,
-   "positie": "A",
-   "totaal": 0
-  },
-  {
-   "club": "SC_Heerenveen",
-   "naam": "Eser Gürbüz",
-   "prijs": 1500000,
    "positie": "A",
    "totaal": 0
   },
@@ -2870,6 +2891,13 @@
    "totaal": 0
   },
   {
+   "club": "Sparta",
+   "naam": "Emirhan Demircan",
+   "prijs": 1250000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
    "club": "Telstar",
    "naam": "Ronald Koeman",
    "prijs": 750000,
@@ -2927,6 +2955,13 @@
   },
   {
    "club": "Telstar",
+   "naam": "Prince Aning",
+   "prijs": 750000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "Telstar",
    "naam": "Nils Rossen",
    "prijs": 1000000,
    "positie": "M",
@@ -2963,6 +2998,20 @@
   {
    "club": "Telstar",
    "naam": "Nigel Ogidi Nwankwo",
+   "prijs": 750000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Telstar",
+   "naam": "Fabiano Rust",
+   "prijs": 750000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Telstar",
+   "naam": "Isaiah Ahmed",
    "prijs": 750000,
    "positie": "M",
    "totaal": 0
@@ -3067,6 +3116,13 @@
   },
   {
    "club": "Willem_II",
+   "naam": "Mats Lemmens",
+   "prijs": 500000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "Willem_II",
    "naam": "Amine Lachkar",
    "prijs": 500000,
    "positie": "M",
@@ -3089,6 +3145,13 @@
   {
    "club": "Willem_II",
    "naam": "Uriël van Aalst",
+   "prijs": 500000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Willem_II",
+   "naam": "Kasper Boogaard",
    "prijs": 500000,
    "positie": "M",
    "totaal": 0
@@ -3123,14 +3186,14 @@
   },
   {
    "club": "Willem_II",
-   "naam": "Siegert Baartmans",
+   "naam": "Thomas Verheydt",
    "prijs": 500000,
    "positie": "A",
    "totaal": 0
   },
   {
    "club": "Willem_II",
-   "naam": "Thomas Verheydt",
+   "naam": "Eser Gurbuz",
    "prijs": 500000,
    "positie": "A",
    "totaal": 0
