@@ -20,7 +20,7 @@ function addPlayerToClub(club, naam, positie, prijs){
   if(!naam){ alert('Vul een spelernaam in.'); return; }
   if(STATE.players.some(p=>p.naam===naam)){ alert('Er bestaat al een speler met deze naam.'); return; }
   STATE.players.push({
-    club, afk: club.slice(0,3).toUpperCase(), naam, prijs: Number(prijs)||0, positie: positie||'V',
+    club, naam, prijs: Number(prijs)||0, positie: positie||'V',
     weken:{}, totaal: 0
   });
   saveState();
@@ -64,7 +64,7 @@ function renderClubSquad(){
     let transferRow = '';
     if(showTransferForm){
       const otherClubs = DATA.clubs.filter(c=>c!==club);
-      transferRow = `<tr><td colspan="5" style="background:var(--panel);">
+      transferRow = `<tr><td colspan="4" style="background:var(--panel);">
         <div class="row small" style="flex-wrap:wrap;">
           <b>${esc(p.naam)} transfereren:</b>
           <select id="transferDestSelect">
@@ -77,10 +77,10 @@ function renderClubSquad(){
         </div>
       </td></tr>`;
     }
-    return `<tr><td style="border-left:4px solid ${posLineColor(p.positie)};"><span class="badge ${p.positie}">${p.positie}</span></td><td>${esc(p.naam)}</td><td class="muted">${esc(p.afk||'')}</td>
+    return `<tr><td style="border-left:4px solid ${posLineColor(p.positie)};"><span class="badge ${p.positie}">${p.positie}</span></td><td>${esc(p.naam)}</td>
       <td class="muted">${fmtGeld(p.prijs)}</td>
       <td>${canEdit() ? `<button class="btn small" data-start-transfer="${esc(p.naam)}" data-start-transfer-club="${esc(club)}">transfer / vertrek</button>` : ''}</td></tr>${transferRow}`;
-  }).join('') || '<tr><td colspan="5" class="muted">Geen spelers gevonden.</td></tr>';
+  }).join('') || '<tr><td colspan="4" class="muted">Geen spelers gevonden.</td></tr>';
 
   const pn = pendingNewPlayer[club] || {naam:'', positie:'V', prijs:''};
   const logRows = STATE.transferLog.slice().sort((a,b)=>b.ronde-a.ronde).map((l,i)=>
@@ -91,7 +91,7 @@ function renderClubSquad(){
 
   document.getElementById('clubSquadPanel').innerHTML = `
     <h2 style="margin-top:0;">${esc(club)} <span class="muted small">(${squad.length} spelers)</span></h2>
-    <table><thead><tr><th>Pos</th><th>Speler</th><th>Club-afk.</th><th>Prijs</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Pos</th><th>Speler</th><th>Prijs</th><th></th></tr></thead><tbody>${rows}</tbody></table>
     ${canEdit() ? `<div class="row" style="margin-top:10px;">
       <input placeholder="Naam nieuwe speler" id="newPlayerNaam" value="${esc(pn.naam)}">
       <select id="newPlayerPositie">
