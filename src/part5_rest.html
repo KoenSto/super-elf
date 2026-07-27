@@ -160,6 +160,17 @@ function puntenVanSpeler(map, p){
   const match = kandidaten.find(a=>a.club===p.club);
   return match ? match.punten : kandidaten[0].punten;
 }
+// Klikbare kolomkoppen (zelfde patroon als bij Tussenstand): op prijs sorteren gaat dus via de
+// "Prijs"-kolomkop zelf aan- en uitklikken, net als de andere sorteerbare kolommen hier.
+let spelersSortKey = 'totaal';
+let spelersSortDir = 'desc';
+const SPELERS_COLUMNS = [
+  {key:'club', label:'Club', sortable:true},
+  {key:'naam', label:'Speler', sortable:true},
+  {key:'positie', label:'Pos', sortable:false},
+  {key:'prijs', label:'Prijs', sortable:true},
+  {key:'totaal', label:'Totaal', sortable:true},
+];
 function renderSpelers(){
   const club = document.getElementById('spelerClubFilter').value;
   const pos = document.getElementById('spelerPosFilter').value;
@@ -168,14 +179,38 @@ function renderSpelers(){
   let list = STATE.players.filter(p=>
     (!club || p.club===club) && (!pos || p.positie===pos) && (!q || p.naam.toLowerCase().includes(q))
   ).map(p=>({...p, totaal: puntenVanSpeler(totaalMap, p)}));
-  list = list.sort((a,b)=> (b.totaal||0)-(a.totaal||0));
-  let html = `<table><thead><tr><th>Club</th><th>Speler</th><th>Pos</th><th>Prijs</th><th>Totaal</th></tr></thead><tbody>`;
+  list.sort((a,b)=>{
+    let av = a[spelersSortKey], bv = b[spelersSortKey];
+    if(spelersSortKey==='naam' || spelersSortKey==='club'){ av=(av||'').toLowerCase(); bv=(bv||'').toLowerCase(); }
+    else { av = av==null?-Infinity:av; bv = bv==null?-Infinity:bv; }
+    if(av<bv) return spelersSortDir==='asc' ? -1 : 1;
+    if(av>bv) return spelersSortDir==='asc' ? 1 : -1;
+    return 0;
+  });
+  const arrow = (key)=> spelersSortKey===key ? (spelersSortDir==='asc'?' ▲':' ▼') : '';
+  let html = '<table><thead><tr>';
+  SPELERS_COLUMNS.forEach(c=>{
+    if(c.sortable){
+      html += `<th style="cursor:pointer;user-select:none;" data-spelers-sort-key="${c.key}">${esc(c.label)}${arrow(c.key)}</th>`;
+    } else {
+      html += `<th>${esc(c.label)}</th>`;
+    }
+  });
+  html += '</tr></thead><tbody>';
   list.slice(0,400).forEach(p=>{
     html += `<tr><td class="muted" style="border-left:4px solid ${posLineColor(p.positie)};">${esc(p.club)}</td><td>${esc(p.naam)}</td><td><span class="badge ${p.positie}">${p.positie}</span></td><td>${fmtGeld(p.prijs)}</td><td class="pts ${p.totaal>0?'pos':(p.totaal<0?'neg':'')}">${p.totaal??0}</td></tr>`;
   });
   html += '</tbody></table>';
   if(list.length>400) html += `<div class="muted small">... en ${list.length-400} meer. Verfijn de zoekopdracht.</div>`;
   document.getElementById('spelersTable').innerHTML = html;
+  document.querySelectorAll('[data-spelers-sort-key]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.spelersSortKey;
+      if(spelersSortKey===key){ spelersSortDir = spelersSortDir==='asc' ? 'desc' : 'asc'; }
+      else { spelersSortKey = key; spelersSortDir = (key==='naam'||key==='club') ? 'asc' : 'desc'; }
+      renderSpelers();
+    });
+  });
 }
 
 /* ============ TAB: Spelregels ============ */
