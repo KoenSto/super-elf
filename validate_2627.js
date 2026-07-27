@@ -676,6 +676,25 @@ async function main(){
   console.log('100) Zodra er al een team is, blijft de (mogelijk aangepaste) oude spelerslijst intact bij een SEED_VERSION-update:', get(sb, "window.__migMetTeam.players.length===1 && window.__migMetTeam.players[0].naam==='OudeSpelerNietMeerInLijst'"));
   console.log('101) Zodra er al een handmatige transfer gelogd is, blijft de oude spelerslijst ook intact, zelfs zonder teams:', get(sb, "window.__migMetTransfer.players.length===1 && window.__migMetTransfer.players[0].naam==='OudeSpelerNietMeerInLijst'"));
 
+  // Twee verschillende spelers met exact dezelfde naam bij verschillende clubs (komt in de praktijk
+  // zelden voor, maar de bijgewerkte spelerslijst introduceerde er één) mogen elkaars punten niet meer
+  // overschrijven: getSpelerPuntenInRonde(ronde, naam, club) moet met een club erbij altijd de score van
+  // dié club teruggeven, ook als de andere gelijknamige speler eerder in de wedstrijddata voorkomt.
+  run(sb, `
+    const rdBotsing = ensureRonde(30);
+    rdBotsing.matches = [
+      {clubThuis:'BotsingClubA', clubUit:'BotsingTegenstanderA', uitslagThuis:1, uitslagUit:0,
+       spelersThuis:[{naam:'Naamgenoot', positie:'M', goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]},
+      {clubThuis:'BotsingClubB', clubUit:'BotsingTegenstanderB', uitslagThuis:0, uitslagUit:0,
+       spelersThuis:[{naam:'Naamgenoot', positie:'M', goal:0, pen_scoren:0, eigen_doelpunt:0, assist:1, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}
+    ];
+    window.__botsingA = getSpelerPuntenInRonde(30, 'Naamgenoot', 'BotsingClubA');
+    window.__botsingB = getSpelerPuntenInRonde(30, 'Naamgenoot', 'BotsingClubB');
+    window.__botsingFallback = getSpelerPuntenInRonde(30, 'Naamgenoot');
+  `);
+  console.log('102) Twee gelijknamige spelers bij verschillende clubs: met club erbij krijgt elk zijn eigen score (niet die van de ander):', get(sb, "window.__botsingA !== window.__botsingB && window.__botsingA === berekenPunten('M','winst',{goal:1,assist:0}) && window.__botsingB === berekenPunten('M','gelijk',{goal:0,assist:1})"));
+  console.log('103) Zonder club (bestaand gedrag) valt dit terug op de eerst gevonden speler met die naam:', get(sb, "window.__botsingFallback === window.__botsingA"));
+
   console.log('ALLES OK');
 }
 main().catch(e=>{ console.error('TESTFOUT', e); process.exit(1); });
