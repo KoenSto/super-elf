@@ -798,6 +798,30 @@ async function main(){
   })()`));
   console.log('112) De kolomkop "Prijs" is klikbaar (data-spelers-sort-key="prijs" aanwezig in de tabel):', get(sb, `window.__spelersPrijsAscHtml.includes('data-spelers-sort-key="prijs"')`));
 
+  // Voetbalploegen: bij een transfer moet je meteen ook de marktwaarde (prijs) van de speler kunnen
+  // aanpassen, in plaats van dat die altijd hetzelfde blijft.
+  run(sb, `
+    STATE.players.push({club:'WaardeTestClubVan', naam:'WaardeTestSpeler', prijs:100, positie:'A', totaal:0});
+    confirmTransfer('WaardeTestSpeler', 'WaardeTestClubVan', 'WaardeTestClubNaar', 15, 250);
+    window.__waardeSpeler = STATE.players.find(p=>p.naam==='WaardeTestSpeler');
+    window.__waardeLog = STATE.transferLog.find(l=>l.naam==='WaardeTestSpeler');
+  `);
+  console.log('113) Bij een transfer met een ingevulde nieuwe waarde wordt de prijs van de speler daadwerkelijk bijgewerkt:', get(sb, "window.__waardeSpeler && window.__waardeSpeler.club==='WaardeTestClubNaar' && window.__waardeSpeler.prijs===250"));
+  console.log('114) De transferlog-regel bewaart zowel de nieuwe waarde (prijs) als de waarde van vóór de transfer (prijsVoorTransfer):', get(sb, "window.__waardeLog && window.__waardeLog.prijs===250 && window.__waardeLog.prijsVoorTransfer===100"));
+
+  run(sb, `
+    STATE.players.push({club:'WaardeTestClubVan2', naam:'WaardeTestSpeler2', prijs:80, positie:'M', totaal:0});
+    confirmTransfer('WaardeTestSpeler2', 'WaardeTestClubVan2', 'WaardeTestClubNaar2', 16, '');
+    window.__waardeSpeler2 = STATE.players.find(p=>p.naam==='WaardeTestSpeler2');
+  `);
+  console.log('115) Laat je het waardeveld leeg (of ongeldig) bij een transfer, dan blijft de bestaande prijs gewoon ongewijzigd:', get(sb, "window.__waardeSpeler2 && window.__waardeSpeler2.prijs===80"));
+
+  run(sb, `
+    renderClubSquad();
+    window.__waardeLogHtml = document.getElementById('transferLogPanel').innerHTML;
+  `);
+  console.log('116) De transferhistorie-tabel toont bij een gewijzigde waarde zowel de nieuwe als de oude prijs:', get(sb, "window.__waardeLogHtml.includes('WaardeTestSpeler') && window.__waardeLogHtml.includes('was') && window.__waardeLogHtml.includes(fmtGeld(250)) && window.__waardeLogHtml.includes(fmtGeld(100))"));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
