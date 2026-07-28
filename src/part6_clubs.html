@@ -28,16 +28,23 @@ function addPlayerToClub(club, naam, positie, prijs){
 }
 function startTransfer(naam, club){ if(blokkeerAlsKijker()) return; transferTarget = {naam, club}; renderClubSquad(); }
 function cancelTransfer(){ transferTarget = null; renderClubSquad(); }
-function confirmTransfer(naam, vanClub, naarClub, ronde){
+// nieuwePrijs is optioneel: bij een transfer verandert vaak ook de marktwaarde van een speler (nieuwe
+// club, andere vorm, etc.), dus kun je die er in één stap bij aanpassen. Laat je het veld leeg of vul je
+// er iets ongeldigs in, dan blijft gewoon de bestaande prijs staan (bestaand gedrag).
+function confirmTransfer(naam, vanClub, naarClub, ronde, nieuwePrijs){
   if(blokkeerAlsKijker()) return;
   const p = STATE.players.find(pl=>pl.naam===naam && pl.club===vanClub);
   if(!p){ alert('Speler niet (meer) gevonden bij ' + vanClub + '.'); return; }
   ronde = Number(ronde) || STATE.huidigeRonde;
-  const logEntry = { naam, vanClub, naarClub: naarClub==='__uit__' ? null : naarClub, positie:p.positie, prijs:p.prijs, ronde, tijdstip: new Date().toISOString() };
+  const prijsVoorTransfer = p.prijs;
+  const prijsNaTransfer = (nieuwePrijs===undefined || nieuwePrijs===null || String(nieuwePrijs).trim()==='' || isNaN(Number(nieuwePrijs)))
+    ? prijsVoorTransfer : Number(nieuwePrijs);
+  const logEntry = { naam, vanClub, naarClub: naarClub==='__uit__' ? null : naarClub, positie:p.positie, prijs:prijsNaTransfer, prijsVoorTransfer, ronde, tijdstip: new Date().toISOString() };
   if(naarClub === '__uit__'){
     STATE.players = STATE.players.filter(pl=>!(pl.naam===naam && pl.club===vanClub));
   } else {
     p.club = naarClub;
+    p.prijs = prijsNaTransfer;
   }
   STATE.transferLog.push(logEntry);
   transferTarget = null;
@@ -72,6 +79,7 @@ function renderClubSquad(){
             <option value="__uit__">vertrekt uit de competitie (buitenlandse club / onbekend)</option>
           </select>
           <label class="muted">vanaf ronde <input type="number" min="1" max="34" id="transferRondeInput" value="${STATE.huidigeRonde}" style="width:50px;"></label>
+          <label class="muted">nieuwe waarde <input type="number" min="0" id="transferPrijsInput" value="${p.prijs}" style="width:100px;"></label>
           <button class="btn small primary" data-confirm-transfer="${esc(p.naam)}" data-confirm-transfer-club="${esc(club)}">bevestig transfer</button>
           <button class="btn small" data-cancel-transfer="1">annuleren</button>
         </div>
@@ -86,8 +94,9 @@ function renderClubSquad(){
   const logRows = STATE.transferLog.slice().sort((a,b)=>b.ronde-a.ronde).map((l,i)=>
     `<tr><td>Ronde ${l.ronde}</td><td>${esc(l.naam)}</td><td class="muted">${esc(l.vanClub)}</td><td>&rarr;</td>
       <td class="muted">${l.naarClub ? esc(l.naarClub) : '<span class="flag">uit competitie</span>'}</td>
+      <td class="muted">${fmtGeld(l.prijs)}${(l.prijsVoorTransfer!==undefined && l.prijsVoorTransfer!==l.prijs) ? ` <span class="small">(was ${fmtGeld(l.prijsVoorTransfer)})</span>` : ''}</td>
       <td>${canEdit() ? `<span class="close-btn" title="verwijder logregel" data-remove-transferlog="${STATE.transferLog.indexOf(l)}">✕</span>` : ''}</td></tr>`
-  ).join('') || '<tr><td colspan="6" class="muted">Nog geen transfers gelogd.</td></tr>';
+  ).join('') || '<tr><td colspan="7" class="muted">Nog geen transfers gelogd.</td></tr>';
 
   document.getElementById('clubSquadPanel').innerHTML = `
     <h2 style="margin-top:0;">${esc(club)} <span class="muted small">(${squad.length} spelers)</span></h2>
@@ -112,8 +121,8 @@ function renderClubSquad(){
 
   document.getElementById('transferLogPanel').innerHTML = `
     <h3 style="margin-top:0;">Transferhistorie (alle clubs)</h3>
-    <div class="note small">Een transfer verandert alleen bij welke club een speler hoort. Punten die de speler al gescoord heeft (in eerder ingevoerde speelrondes) blijven onveranderd bij de teams die hem toen op basis of reservebank hadden staan &mdash; die koppeling gaat op naam, niet op club.</div>
-    <table><thead><tr><th>Ronde</th><th>Speler</th><th>Van</th><th></th><th>Naar</th><th></th></tr></thead><tbody>${logRows}</tbody></table>
+    <div class="note small">Een transfer verandert bij welke club een speler hoort, en je kunt daarbij meteen ook zijn marktwaarde (prijs) aanpassen. Punten die de speler al gescoord heeft (in eerder ingevoerde speelrondes) blijven onveranderd bij de teams die hem toen op basis of reservebank hadden staan &mdash; die koppeling gaat op naam, niet op club.</div>
+    <table><thead><tr><th>Ronde</th><th>Speler</th><th>Van</th><th></th><th>Naar</th><th>Waarde</th><th></th></tr></thead><tbody>${logRows}</tbody></table>
   `;
 }
 
@@ -126,7 +135,8 @@ document.addEventListener('click', (e)=>{
     const vanClub = t.dataset.confirmTransferClub;
     const naarClub = document.getElementById('transferDestSelect').value;
     const ronde = document.getElementById('transferRondeInput').value;
-    confirmTransfer(naam, vanClub, naarClub, ronde);
+    const nieuwePrijs = document.getElementById('transferPrijsInput').value;
+    confirmTransfer(naam, vanClub, naarClub, ronde, nieuwePrijs);
   }
   if(t.dataset.removeTransferlog!==undefined){ removeTransferLogEntry(Number(t.dataset.removeTransferlog)); }
 });
