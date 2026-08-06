@@ -211,6 +211,13 @@
   },
   {
    "club": "Ajax",
+   "naam": "Marc-Andre ter Stegen",
+   "prijs": 2000000,
+   "positie": "K",
+   "totaal": 0
+  },
+  {
+   "club": "Ajax",
    "naam": "Youri Baas",
    "prijs": 2500000,
    "positie": "V",
@@ -429,13 +436,6 @@
   {
    "club": "AZ",
    "naam": "Wouter Goes",
-   "prijs": 2000000,
-   "positie": "V",
-   "totaal": 0
-  },
-  {
-   "club": "AZ",
-   "naam": "Alexandre Penetra",
    "prijs": 2000000,
    "positie": "V",
    "totaal": 0
@@ -988,7 +988,7 @@
   },
   {
    "club": "FC_Twente",
-   "naam": "Issam El Maach",
+   "naam": "Joel Drommel",
    "prijs": 2000000,
    "positie": "K",
    "totaal": 0
@@ -996,13 +996,6 @@
   {
    "club": "FC_Twente",
    "naam": "Remko Pasveer",
-   "prijs": 2000000,
-   "positie": "K",
-   "totaal": 0
-  },
-  {
-   "club": "FC_Twente",
-   "naam": "Yannick Gerritsen",
    "prijs": 2000000,
    "positie": "K",
    "totaal": 0
@@ -1115,13 +1108,6 @@
   {
    "club": "FC_Twente",
    "naam": "Arno Verschueren",
-   "prijs": 2000000,
-   "positie": "M",
-   "totaal": 0
-  },
-  {
-   "club": "FC_Twente",
-   "naam": "Harrie Kuster",
    "prijs": 2000000,
    "positie": "M",
    "totaal": 0
@@ -2339,13 +2325,6 @@
   },
   {
    "club": "PSV",
-   "naam": "Joel Drommel",
-   "prijs": 2750000,
-   "positie": "K",
-   "totaal": 0
-  },
-  {
-   "club": "PSV",
    "naam": "Sergino Dest",
    "prijs": 3000000,
    "positie": "V",
@@ -3089,6 +3068,13 @@
   {
    "club": "Telstar",
    "naam": "Isaiah Ahmed",
+   "prijs": 750000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Telstar",
+   "naam": "Harrie Kuster",
    "prijs": 750000,
    "positie": "M",
    "totaal": 0
