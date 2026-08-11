@@ -822,6 +822,26 @@ async function main(){
   `);
   console.log('116) De transferhistorie-tabel toont bij een gewijzigde waarde zowel de nieuwe als de oude prijs:', get(sb, "window.__waardeLogHtml.includes('WaardeTestSpeler') && window.__waardeLogHtml.includes('was') && window.__waardeLogHtml.includes(fmtGeld(250)) && window.__waardeLogHtml.includes(fmtGeld(100))"));
 
+  // "+ speler toevoegen aan basis" kreeg een optioneel "vanaf ronde"-veld: sommige deelnemers leveren
+  // per ongeluk een verkeerde speler in, en de juiste speler mag dan pas vanaf een latere ronde
+  // meetellen (zonder dat dit als een echte transfer/wissel-budget geldt of in de wisselhistorie komt).
+  run(sb, `
+    addTeam('CorrectieSpeler', 'Team Correctietest');
+    window.__corrKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Correctietest');
+    const clubCorr = DATA.clubs[2];
+    const spelersCorr = STATE.players.filter(p=>p.club===clubCorr);
+    window.__corrSpeler = spelersCorr[0].naam;
+    addBasisSpeler(window.__corrKey, clubCorr, window.__corrSpeler, 3);
+    window.__corrEntry = STATE.teams[window.__corrKey].basis.find(b=>b.naam===window.__corrSpeler);
+  `);
+  console.log('117) addBasisSpeler met een opgegeven "vanaf ronde" zet vanaf_ronde op die ronde i.p.v. altijd op 1:', get(sb, "window.__corrEntry && window.__corrEntry.vanaf_ronde===3 && window.__corrEntry.laatste_ronde===null"));
+  console.log('118) Een correctie via addBasisSpeler kost geen wissel-budget en komt niet in de wisselhistorie:', get(sb, "STATE.teams[window.__corrKey].wissels.length===0 && !STATE.wisselLog.some(l=>l.teamKey===window.__corrKey)"));
+
+  run(sb, `selectedTeamKey = window.__corrKey; teamsRonde = 3; renderTeamDetail();`);
+  const corrHtml = get(sb, "document.getElementById('teamDetail').innerHTML");
+  console.log('119) De basisopstelling toont "sinds ronde 3 (correctie)" voor deze speler, niet "(wissel)":', corrHtml.includes('sinds ronde 3 (correctie)') && !corrHtml.includes('sinds ronde 3 (wissel)'));
+  console.log('120) Het nieuwe "vanaf ronde"-invoerveld staat bij "speler toevoegen aan basis":', corrHtml.includes('data-newbasis-ronde='));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
