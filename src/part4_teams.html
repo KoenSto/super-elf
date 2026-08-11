@@ -192,7 +192,7 @@ function removeTeam(key){
   renderTeamsGrid();
   renderTeamDetail();
 }
-function addBasisSpeler(teamKey, club, naam){
+function addBasisSpeler(teamKey, club, naam, vanafRonde){
   if(blokkeerAlsKijker()) return;
   const p = STATE.players.find(pl=>pl.club===club && pl.naam===naam);
   if(!p){ alert('Kies een geldige speler.'); return; }
@@ -206,7 +206,13 @@ function addBasisSpeler(teamKey, club, naam){
     alert(`${naam} heeft al eerder in dit team gestaan en is op enig moment vervangen. Gebruik "wissel doorvoeren" om hem terug te halen, zodat de puntentelling vanaf de juiste ronde weer meeloopt (en niet dubbel telt met zijn eerdere periode).`);
     return;
   }
-  team.basis.push({club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{}, vanaf_ronde:1, laatste_ronde:null});
+  // "vanaf ronde" is standaard 1 (nieuwe speler telt vanaf het begin van het seizoen mee), maar kan
+  // hoger gezet worden voor correcties: bijv. een deelnemer leverde per ongeluk een verkeerde speler in
+  // en de juiste speler mag pas vanaf een latere ronde meetellen. Dit gebeurt hier bewust los van de
+  // wisselknop hieronder, want het is geen echte transfer (kost geen wissel-budget en wordt niet in de
+  // wisselhistorie gelogd) — de al gespeelde rondes van deze speler blijven gewoon buiten beschouwing.
+  const ronde = Math.max(1, Math.min(34, Number(vanafRonde) || 1));
+  team.basis.push({club:p.club, naam:p.naam, prijs:p.prijs, positie:p.positie, weken:{}, vanaf_ronde:ronde, laatste_ronde:null});
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeBasisSpeler(teamKey, idx){
@@ -274,7 +280,7 @@ function removeWisselLogEntry(idx){
 }
 
 /* pending (niet-opgeslagen) keuzes in de "toevoegen"-formuliertjes per team */
-const pendingBasisClub = {}, pendingBasisSpeler = {};
+const pendingBasisClub = {}, pendingBasisSpeler = {}, pendingBasisRonde = {};
 const pendingWisselClub = {}, pendingWisselSpeler = {}, pendingWisselRonde = {}, pendingWisselUit = {}, pendingWisselType = {};
 
 function clubOptionsHTML(selected){
@@ -388,7 +394,7 @@ function renderTeamDetail(){
   const basisRows = weergegevenSorted.map(b=>{
     const lp = getSpelerPuntenInRonde(ronde, b.naam, b.club);
     const foutRij = dubbeleClubs.has(b.club);
-    const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde} (wissel)` : 'vanaf start';
+    const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde}${b._bron==='wissel' ? ' (wissel)' : ' (correctie)'}` : 'vanaf start';
     // Verwijderen kan alleen voor een speler die NU nog echt actief is (een historische, al
     // afgesloten periode van een eerdere ronde is hier alleen ter info te zien, niet te bewerken).
     const magVerwijderen = canEdit() && isActieveSpeler(b);
@@ -412,6 +418,7 @@ function renderTeamDetail(){
 
   const pbClub = pendingBasisClub[team.key] || DATA.clubs[0];
   const pbSpeler = pendingBasisSpeler[team.key] || (playersOfClub(pbClub)[0] && playersOfClub(pbClub)[0].naam) || '';
+  const pbRonde = pendingBasisRonde[team.key] || 1;
   const pwClub = pendingWisselClub[team.key] || DATA.clubs[0];
   const pwSpeler = pendingWisselSpeler[team.key] || (playersOfClub(pwClub)[0] && playersOfClub(pwClub)[0].naam) || '';
   // Een NIEUWE wissel gaat standaard in vanaf de huidige speelronde (STATE.huidigeRonde), niet vanaf
@@ -444,11 +451,13 @@ function renderTeamDetail(){
     <h3>Basisopstelling (ronde ${ronde})</h3>
     <div class="note small">Deze tabel toont wie er in ronde ${ronde} echt in de opstelling stond &mdash; kies hierboven een andere ronde om terug of vooruit te kijken. Wissel je iemand, dan verandert de opstelling vanaf de wisselronde; oudere rondes blijven het oorspronkelijke elftal laten zien.</div>
     <table><thead><tr><th>Pos</th><th>Speler</th><th>Club</th><th>Prijs</th><th>Status</th><th>Ronde ${ronde}</th><th></th></tr></thead><tbody>${basisRows}</tbody></table>
-    ${canEdit() ? `<div class="row" style="margin-top:8px;">
+    ${canEdit() ? `<div class="row" style="margin-top:8px;flex-wrap:wrap;">
       <select data-newbasis-club="${team.key}">${clubOptionsHTML(pbClub)}</select>
       <select data-newbasis-speler="${team.key}" style="${playerSelectStijl(pbClub, pbSpeler)}">${playerOptionsHTML(pbClub, pbSpeler)}</select>
+      <label class="small muted">vanaf ronde <input type="number" min="1" max="34" value="${pbRonde}" data-newbasis-ronde="${team.key}" style="width:50px;"></label>
       <button class="btn small primary" data-add-basis="${team.key}">+ speler toevoegen aan basis</button>
-    </div>` : ''}
+    </div>
+    <div class="note small">Standaard telt een nieuwe basisspeler vanaf ronde 1 mee. Zet "vanaf ronde" hoger om een correctie door te voeren &mdash; bijv. als iemand per ongeluk de verkeerde speler had ingeleverd en de juiste speler pas vanaf een latere ronde mag meetellen. Dit kost geen wissel-budget en komt niet in de wisselhistorie te staan.</div>` : ''}
 
     <h3 style="margin-top:18px;">Wissel doorvoeren (max ${maxWisselsVoorRonde(ronde)} regulier + evt. vrije wissels bij transfer)</h3>
     <div class="note small">Een wissel vervangt een speler uit de basisopstelling door een nieuwe speler. De nieuwe speler komt direct in de basisopstelling hierboven te staan; zijn punten tellen vanaf de gekozen ronde, en de punten van de vervangen speler tellen precies tot en met de ronde daarvoor &mdash; ook als diezelfde speler later weer wordt terug gewisseld.</div>
@@ -476,6 +485,7 @@ document.addEventListener('change', (e)=>{
   const t = e.target;
   if(t.dataset.newbasisClub){ pendingBasisClub[t.dataset.newbasisClub] = t.value; delete pendingBasisSpeler[t.dataset.newbasisClub]; renderTeamDetail(); }
   else if(t.dataset.newbasisSpeler){ pendingBasisSpeler[t.dataset.newbasisSpeler] = t.value; renderTeamDetail(); }
+  else if(t.dataset.newbasisRonde){ pendingBasisRonde[t.dataset.newbasisRonde] = t.value; }
   else if(t.dataset.newwisselClub){ pendingWisselClub[t.dataset.newwisselClub] = t.value; delete pendingWisselSpeler[t.dataset.newwisselClub]; renderTeamDetail(); }
   else if(t.dataset.newwisselSpeler){ pendingWisselSpeler[t.dataset.newwisselSpeler] = t.value; renderTeamDetail(); }
   else if(t.dataset.newwisselRonde){ pendingWisselRonde[t.dataset.newwisselRonde] = t.value; }
@@ -488,7 +498,8 @@ document.addEventListener('click', (e)=>{
     const key = t.dataset.addBasis;
     const club = pendingBasisClub[key] || DATA.clubs[0];
     const naam = pendingBasisSpeler[key] || (playersOfClub(club)[0] && playersOfClub(club)[0].naam);
-    addBasisSpeler(key, club, naam);
+    const ronde = pendingBasisRonde[key] || 1;
+    addBasisSpeler(key, club, naam, ronde);
   }
   if(t.dataset.removeActief!==undefined){
     removeActieveSpeler(t.dataset.removeActief, t.dataset.removeActiefBron, Number(t.dataset.removeActiefIdx));
