@@ -152,12 +152,18 @@ function getSpelerPuntenInRonde(ronde, naam, club){
 // punten van een vervangen speler precies op het moment van de wissel, telt de nieuwe speler pas vanaf
 // die ronde mee, en telt een speler die later weer wordt terug gewisseld (twee losse records voor
 // dezelfde naam, met niet-overlappende periodes) in elke ronde maar één keer mee.
+// blokVanafRonde: een speler kan door een ECHTE transfer (bv. van NEC naar PSV) ineens dezelfde
+// club hebben als een teamgenoot die er al stond. Zonder dat de eigenaar zelf op tijd een wissel
+// heeft doorgevoerd, telt zo'n dubbele-club-speler vanaf de ronde van de transfer geen punten meer
+// mee (huisregel) — hij blijft wel gewoon in de opstelling staan, kost geen extra wissel-budget en
+// is niet "vervangen"; alleen zijn puntenbijdrage wordt vanaf blokVanafRonde op 0 gezet.
 function liveTotaalRonde(team, ronde){
   let total = 0, gevonden = 0;
   team.basis.concat(team.wissels).forEach(p=>{
     const van = p.vanaf_ronde || 1;
     const tot = (p.laatste_ronde===null || p.laatste_ronde===undefined) ? 34 : p.laatste_ronde;
     if(ronde<van || ronde>tot) return;
+    if(p.blokVanafRonde && ronde>=p.blokVanafRonde){ gevonden++; return; }
     const pts = getSpelerPuntenInRonde(ronde, p.naam, p.club);
     if(pts!==null){ total += pts; gevonden++; }
   });
@@ -392,7 +398,8 @@ function renderTeamDetail(){
   const weergegevenSorted = [...weergegevenSpelers].sort((a,b)=>posOrder[a.positie]-posOrder[b.positie] || a.naam.localeCompare(b.naam));
 
   const basisRows = weergegevenSorted.map(b=>{
-    const lp = getSpelerPuntenInRonde(ronde, b.naam, b.club);
+    const geblokkeerd = b.blokVanafRonde && ronde>=b.blokVanafRonde;
+    const lp = geblokkeerd ? 0 : getSpelerPuntenInRonde(ronde, b.naam, b.club);
     const foutRij = dubbeleClubs.has(b.club);
     const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde}${b._bron==='wissel' ? ' (wissel)' : ' (correctie)'}` : 'vanaf start';
     // Verwijderen kan alleen voor een speler die NU nog echt actief is (een historische, al
@@ -404,7 +411,7 @@ function renderTeamDetail(){
       <td class="muted">${esc(b.club)}${foutRij ? ' <span class="flag flag-danger">dubbele club</span>' : ''}</td>
       <td class="muted">${fmtGeld(b.prijs)}</td>
       <td class="muted small">${statusTekst}</td>
-      <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}</td>
+      <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}${geblokkeerd ? ' <span class="flag flag-danger" title="Door een echte transfer staat deze speler bij dezelfde club als een teamgenoot; zonder tijdige wissel telt hij vanaf deze ronde niet meer mee.">geblokkeerd (dubbele club)</span>' : ''}</td>
       <td>${magVerwijderen ? `<span class="close-btn" title="verwijder uit opstelling" data-remove-actief="${team.key}" data-remove-actief-bron="${b._bron}" data-remove-actief-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="7" class="muted">Nog geen basisspelers in ronde ${ronde}. Voeg ze hieronder toe.</td></tr>`;
 
