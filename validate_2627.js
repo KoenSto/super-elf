@@ -852,7 +852,9 @@ async function main(){
     const clubBlok = DATA.clubs[3];
     const spelersBlok = STATE.players.filter(p=>p.club===clubBlok);
     window.__blokSpeler = spelersBlok[0].naam;
+    window.__collegaSpeler = spelersBlok[1].naam;
     addBasisSpeler(window.__blokKey, clubBlok, window.__blokSpeler);
+    addBasisSpeler(window.__blokKey, clubBlok, window.__collegaSpeler);
     const teamBlok = STATE.teams[window.__blokKey];
     teamBlok.basis[0].blokVanafRonde = 20;
 
@@ -862,18 +864,32 @@ async function main(){
     const rd20 = ensureRonde(20);
     rd20.matches = [{clubThuis:clubBlok, clubUit:'BlokTegenstander20', uitslagThuis:1, uitslagUit:0,
       spelersThuis:[{naam:window.__blokSpeler, positie:teamBlok.basis[0].positie, goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
+    const rd21 = ensureRonde(21);
+    rd21.matches = [{clubThuis:clubBlok, clubUit:'BlokTegenstander21', uitslagThuis:1, uitslagUit:0,
+      spelersThuis:[{naam:window.__blokSpeler, positie:teamBlok.basis[0].positie, goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
 
     window.__blokLive19 = liveTotaalRonde(teamBlok, 19);
     window.__blokLive20 = liveTotaalRonde(teamBlok, 20);
     window.__blokPunten20 = getSpelerPuntenInRonde(20, window.__blokSpeler);
   `);
-  console.log('121) Vóór blokVanafRonde (ronde 19) telt de score van deze speler nog gewoon mee:', get(sb, "window.__blokLive19.total > 0 && window.__blokLive19.gevonden===1"));
-  console.log('122) Vanaf blokVanafRonde (ronde 20) telt zijn score niet meer mee (total 0), ook al scoorde hij een doelpunt:', get(sb, "window.__blokLive20.total===0 && window.__blokPunten20 > 0"));
+  console.log('121) Vóór blokVanafRonde (ronde 19) telt de score van deze speler nog gewoon mee, ook al staat de dubbele club er al:', get(sb, "window.__blokLive19.total > 0 && window.__blokLive19.gevonden===1"));
+  console.log('122) Vanaf blokVanafRonde (ronde 20), zolang de dubbele club nog bestaat, telt zijn score niet meer mee (total 0), ook al scoorde hij een doelpunt:', get(sb, "window.__blokLive20.total===0 && window.__blokPunten20 > 0"));
   console.log('123) De speler blijft wel "gevonden" (dus nog gewoon in de opstelling) in de geblokkeerde ronde:', get(sb, "window.__blokLive20.gevonden===1"));
 
   run(sb, `selectedTeamKey = window.__blokKey; teamsRonde = 20; renderTeamDetail();`);
   const blokHtml = get(sb, "document.getElementById('teamDetail').innerHTML");
   console.log('124) De basisopstelling toont in de geblokkeerde ronde "0" en het label "geblokkeerd (dubbele club)" i.p.v. zijn echte doelpuntenscore:', blokHtml.includes('geblokkeerd (dubbele club)'));
+
+  run(sb, `
+    // Zelf-herstellend: de collega (de OORSPRONKELIJKE PSV-speler in de Sano-analogie) wordt vanaf ronde 21
+    // uit het elftal gewisseld. Het dubbele-club-conflict is dan opgelost, dus blokSpeler moet vanaf ronde 21
+    // gewoon weer meetellen, zonder dat blokVanafRonde zelf wordt aangepast.
+    const teamBlok2 = STATE.teams[window.__blokKey];
+    teamBlok2.basis[1].laatste_ronde = 20;
+    window.__blokLive21NaWissel = liveTotaalRonde(teamBlok2, 21);
+    window.__blokPunten21 = getSpelerPuntenInRonde(21, window.__blokSpeler);
+  `);
+  console.log('125) Zodra de collega met dezelfde club uit het elftal is gewisseld, is het conflict opgelost en telt de score van de geblokkeerde speler vanaf die ronde automatisch weer mee, zonder dat blokVanafRonde is aangepast:', get(sb, "window.__blokLive21NaWissel.total>0 && window.__blokLive21NaWissel.total===window.__blokPunten21 && window.__blokLive21NaWissel.gevonden===1"));
 
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
