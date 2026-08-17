@@ -842,6 +842,39 @@ async function main(){
   console.log('119) De basisopstelling toont "sinds ronde 3 (correctie)" voor deze speler, niet "(wissel)":', corrHtml.includes('sinds ronde 3 (correctie)') && !corrHtml.includes('sinds ronde 3 (wissel)'));
   console.log('120) Het nieuwe "vanaf ronde"-invoerveld staat bij "speler toevoegen aan basis":', corrHtml.includes('data-newbasis-ronde='));
 
+  // blokVanafRonde: een speler die door een ECHTE transfer ineens bij dezelfde club zit als een
+  // teamgenoot, telt vanaf de opgegeven ronde geen punten meer mee (huisregel bij een gemiste
+  // tijdige wissel) — hij blijft wél gewoon in de opstelling staan (geen wissel-budget, niet
+  // "vervangen"), alleen zijn score wordt vanaf die ronde op 0 gezet.
+  run(sb, `
+    addTeam('BlokSpeler', 'Team Bloktest');
+    window.__blokKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Bloktest');
+    const clubBlok = DATA.clubs[3];
+    const spelersBlok = STATE.players.filter(p=>p.club===clubBlok);
+    window.__blokSpeler = spelersBlok[0].naam;
+    addBasisSpeler(window.__blokKey, clubBlok, window.__blokSpeler);
+    const teamBlok = STATE.teams[window.__blokKey];
+    teamBlok.basis[0].blokVanafRonde = 20;
+
+    const rd19 = ensureRonde(19);
+    rd19.matches = [{clubThuis:clubBlok, clubUit:'BlokTegenstander19', uitslagThuis:1, uitslagUit:0,
+      spelersThuis:[{naam:window.__blokSpeler, positie:teamBlok.basis[0].positie, goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
+    const rd20 = ensureRonde(20);
+    rd20.matches = [{clubThuis:clubBlok, clubUit:'BlokTegenstander20', uitslagThuis:1, uitslagUit:0,
+      spelersThuis:[{naam:window.__blokSpeler, positie:teamBlok.basis[0].positie, goal:1, pen_scoren:0, eigen_doelpunt:0, assist:0, geen_tegengoals:0, geel:0, geel2:0, rood:0}], spelersUit:[]}];
+
+    window.__blokLive19 = liveTotaalRonde(teamBlok, 19);
+    window.__blokLive20 = liveTotaalRonde(teamBlok, 20);
+    window.__blokPunten20 = getSpelerPuntenInRonde(20, window.__blokSpeler);
+  `);
+  console.log('121) Vóór blokVanafRonde (ronde 19) telt de score van deze speler nog gewoon mee:', get(sb, "window.__blokLive19.total > 0 && window.__blokLive19.gevonden===1"));
+  console.log('122) Vanaf blokVanafRonde (ronde 20) telt zijn score niet meer mee (total 0), ook al scoorde hij een doelpunt:', get(sb, "window.__blokLive20.total===0 && window.__blokPunten20 > 0"));
+  console.log('123) De speler blijft wel "gevonden" (dus nog gewoon in de opstelling) in de geblokkeerde ronde:', get(sb, "window.__blokLive20.gevonden===1"));
+
+  run(sb, `selectedTeamKey = window.__blokKey; teamsRonde = 20; renderTeamDetail();`);
+  const blokHtml = get(sb, "document.getElementById('teamDetail').innerHTML");
+  console.log('124) De basisopstelling toont in de geblokkeerde ronde "0" en het label "geblokkeerd (dubbele club)" i.p.v. zijn echte doelpuntenscore:', blokHtml.includes('geblokkeerd (dubbele club)'));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
