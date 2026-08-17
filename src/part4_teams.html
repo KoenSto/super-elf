@@ -157,13 +157,23 @@ function getSpelerPuntenInRonde(ronde, naam, club){
 // heeft doorgevoerd, telt zo'n dubbele-club-speler vanaf de ronde van de transfer geen punten meer
 // mee (huisregel) — hij blijft wel gewoon in de opstelling staan, kost geen extra wissel-budget en
 // is niet "vervangen"; alleen zijn puntenbijdrage wordt vanaf blokVanafRonde op 0 gezet.
+// De blokkade is bewust ZELF-HERSTELLEND: hij geldt alleen zolang er in die ronde nog daadwerkelijk
+// een teamgenoot van dezelfde club actief is. Zodra de eigenaar het conflict oplost via een wissel —
+// of hij nu de geblokkeerde speler zelf vervangt, of juist de andere (oorspronkelijke) speler van die
+// club — verdwijnt de dubbele club en telt de score vanaf die ronde vanzelf weer gewoon mee, zonder dat
+// blokVanafRonde handmatig teruggedraaid hoeft te worden.
 function liveTotaalRonde(team, ronde){
   let total = 0, gevonden = 0;
-  team.basis.concat(team.wissels).forEach(p=>{
+  const actiefInRonde = team.basis.concat(team.wissels).filter(p=>{
     const van = p.vanaf_ronde || 1;
     const tot = (p.laatste_ronde===null || p.laatste_ronde===undefined) ? 34 : p.laatste_ronde;
-    if(ronde<van || ronde>tot) return;
-    if(p.blokVanafRonde && ronde>=p.blokVanafRonde){ gevonden++; return; }
+    return ronde>=van && ronde<=tot;
+  });
+  actiefInRonde.forEach(p=>{
+    if(p.blokVanafRonde && ronde>=p.blokVanafRonde){
+      const nogSteedsDubbeleClub = actiefInRonde.some(x=>x!==p && x.club===p.club);
+      if(nogSteedsDubbeleClub){ gevonden++; return; }
+    }
     const pts = getSpelerPuntenInRonde(ronde, p.naam, p.club);
     if(pts!==null){ total += pts; gevonden++; }
   });
@@ -398,7 +408,9 @@ function renderTeamDetail(){
   const weergegevenSorted = [...weergegevenSpelers].sort((a,b)=>posOrder[a.positie]-posOrder[b.positie] || a.naam.localeCompare(b.naam));
 
   const basisRows = weergegevenSorted.map(b=>{
-    const geblokkeerd = b.blokVanafRonde && ronde>=b.blokVanafRonde;
+    // Net als in liveTotaalRonde: de blokkade geldt alleen zolang de dubbele club in déze bekeken
+    // ronde nog echt bestaat — is die inmiddels opgelost via een wissel, dan telt hij weer gewoon mee.
+    const geblokkeerd = b.blokVanafRonde && ronde>=b.blokVanafRonde && dubbeleClubs.has(b.club);
     const lp = geblokkeerd ? 0 : getSpelerPuntenInRonde(ronde, b.naam, b.club);
     const foutRij = dubbeleClubs.has(b.club);
     const statusTekst = (b.vanaf_ronde && b.vanaf_ronde>1) ? `sinds ronde ${b.vanaf_ronde}${b._bron==='wissel' ? ' (wissel)' : ' (correctie)'}` : 'vanaf start';
