@@ -345,7 +345,7 @@
   {
    "club": "Ajax",
    "naam": "Mika Godts",
-   "prijs": 3250000,
+   "prijs": 0,
    "positie": "A",
    "totaal": 0
   },
@@ -1596,9 +1596,9 @@
    "totaal": 0
   },
   {
-   "club": "Feyenoord",
+   "club": "Excelsior",
    "naam": "Aymen Sliti",
-   "prijs": 2250000,
+   "prijs": 1000000,
    "positie": "A",
    "totaal": 0
   },
@@ -1855,7 +1855,7 @@
    "totaal": 0
   },
   {
-   "club": "Go_Ahead",
+   "club": "Willem_II",
    "naam": "Calvin Twigt",
    "prijs": 1000000,
    "positie": "M",
@@ -2037,7 +2037,7 @@
    "totaal": 0
   },
   {
-   "club": "NEC",
+   "club": "PSV",
    "naam": "Kodai Sano",
    "prijs": 2250000,
    "positie": "M",
@@ -3272,6 +3272,146 @@
    "club": "Willem_II",
    "naam": "Eser Gurbuz",
    "prijs": 500000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "ADO",
+   "naam": "Othniël Raterink",
+   "prijs": 750000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Groningen",
+   "naam": "Mark Csinger",
+   "prijs": 1250000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "Feyenoord",
+   "naam": "Tijme Wessels",
+   "prijs": 2250000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "AZ",
+   "naam": "Hessel de Wit",
+   "prijs": 1750000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Groningen",
+   "naam": "Alvin Nordin",
+   "prijs": 1250000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Fortuna_Sittard",
+   "naam": "Gani Buyukhan",
+   "prijs": 1000000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "Excelsior",
+   "naam": "Mario Dominguez",
+   "prijs": 1000000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "Excelsior",
+   "naam": "Alireza Jahanbakhsh",
+   "prijs": 1250000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Groningen",
+   "naam": "Jacob Ondrejka",
+   "prijs": 1250000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "Feyenoord",
+   "naam": "Jivayno Zinhagel",
+   "prijs": 2250000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "FC_Twente",
+   "naam": "Filip Thorvaldsen",
+   "prijs": 2000000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "NEC",
+   "naam": "Nikolas Polster",
+   "prijs": 2000000,
+   "positie": "K",
+   "totaal": 0
+  },
+  {
+   "club": "PEC",
+   "naam": "Jan Burger",
+   "prijs": 1000000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "Telstar",
+   "naam": "Gabi Caschili",
+   "prijs": 750000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "NEC",
+   "naam": "Almugera Kabar",
+   "prijs": 2000000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "NEC",
+   "naam": "Gabriel Bras",
+   "prijs": 2000000,
+   "positie": "V",
+   "totaal": 0
+  },
+  {
+   "club": "Willem_II",
+   "naam": "Ismael Mouhoul",
+   "prijs": 500000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "PSV",
+   "naam": "Filip Kostic",
+   "prijs": 3000000,
+   "positie": "M",
+   "totaal": 0
+  },
+  {
+   "club": "PSV",
+   "naam": "Amir Bouhamdi",
+   "prijs": 2750000,
+   "positie": "A",
+   "totaal": 0
+  },
+  {
+   "club": "SC_Cambuur",
+   "naam": "Sami Bouhoudane",
+   "prijs": 750000,
    "positie": "A",
    "totaal": 0
   }
