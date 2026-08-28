@@ -891,6 +891,73 @@ async function main(){
   `);
   console.log('125) Zodra de collega met dezelfde club uit het elftal is gewisseld, is het conflict opgelost en telt de score van de geblokkeerde speler vanaf die ronde automatisch weer mee, zonder dat blokVanafRonde is aangepast:', get(sb, "window.__blokLive21NaWissel.total>0 && window.__blokLive21NaWissel.total===window.__blokPunten21 && window.__blokLive21NaWissel.gevonden===1"));
 
+  // Een wissel ongedaan maken (removeWissel) liet de vervangen speler voorheen spoorloos verdwijnen:
+  // zijn record bleef met laatste_ronde staan, maar er kwam geen nieuw actief record voor terug. Nu
+  // moet hij automatisch weer als actieve speler tevoorschijn komen, zodra de wissel die hem verving
+  // wordt verwijderd.
+  run(sb, `
+    addTeam('OngedaanTest', 'Team Ongedaan');
+    window.__ruKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Ongedaan');
+    const clubRu = DATA.clubs[2];
+    const spelersRu = STATE.players.filter(p=>p.club===clubRu);
+    window.__ruSpelerA = spelersRu[0].naam;
+    window.__ruSpelerB = spelersRu[1].naam;
+    addBasisSpeler(window.__ruKey, clubRu, window.__ruSpelerA);
+    addWissel(window.__ruKey, clubRu, window.__ruSpelerB, 3, window.__ruSpelerA, 'regulier');
+    const teamRu = STATE.teams[window.__ruKey];
+    window.__ruVoorRemove = { aActief: isActieveSpeler(teamRu.basis[0]), bActief: isActieveSpeler(teamRu.wissels[0]) };
+    const idxB = teamRu.wissels.findIndex(w=>w.naam===window.__ruSpelerB);
+    removeWissel(window.__ruKey, idxB);
+    window.__ruNaRemove = { aActief: isActieveSpeler(teamRu.basis[0]), wisselsOver: teamRu.wissels.length };
+  `);
+  console.log('126) Vóór het ongedaan maken staat speler B actief en speler A niet meer (normale wisselsituatie):', get(sb, "window.__ruVoorRemove.aActief===false && window.__ruVoorRemove.bActief===true"));
+  console.log('127) Een wissel ongedaan maken (removeWissel) haalt de vervangen speler automatisch weer terug als actieve speler, in plaats van hem te laten verdwijnen:', get(sb, "window.__ruNaRemove.aActief===true"));
+  console.log('128) Na het ongedaan maken staat de wissel zelf niet meer in de wisselhistorie van het team:', get(sb, "window.__ruNaRemove.wisselsOver===0"));
+
+  // Een wissel wijzigen (editWisselRonde) past de ronde van een al doorgevoerde wissel aan — bijv. bij
+  // een tikfout (ronde 3 ingevuld terwijl het ronde 4 moest zijn) — zonder de wissel te verwijderen en
+  // opnieuw aan te maken. De vervangen speler moet daarbij automatisch mee-verschuiven: precies tot en
+  // met de nieuwe ronde min 1 actief, niet meer en niet minder.
+  run(sb, `
+    addTeam('WijzigTest', 'Team Wijzig');
+    window.__ewKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Wijzig');
+    const clubEw = DATA.clubs[3];
+    const spelersEw = STATE.players.filter(p=>p.club===clubEw);
+    window.__ewSpelerA = spelersEw[0].naam;
+    window.__ewSpelerB = spelersEw[1].naam;
+    addBasisSpeler(window.__ewKey, clubEw, window.__ewSpelerA);
+    addWissel(window.__ewKey, clubEw, window.__ewSpelerB, 3, window.__ewSpelerA, 'regulier');
+    const teamEw = STATE.teams[window.__ewKey];
+    const idxEwB = teamEw.wissels.findIndex(w=>w.naam===window.__ewSpelerB);
+    editWisselRonde(window.__ewKey, idxEwB, 4);
+    window.__ewNa = { vanafRonde: teamEw.wissels[idxEwB].vanaf_ronde, aLaatsteRonde: teamEw.basis[0].laatste_ronde };
+  `);
+  console.log('129) editWisselRonde past de ronde van een bestaande wissel aan (van 3 naar 4):', get(sb, "window.__ewNa.vanafRonde===4"));
+  console.log('130) ...en schuift de actieve periode van de vervangen speler automatisch mee (laatste_ronde van 2 naar 3):', get(sb, "window.__ewNa.aLaatsteRonde===3"));
+
+  // computeBudget moet bij het terugbladeren naar een oudere ronde de prijs van de opstelling zoals die
+  // toen echt stond optellen, niet altijd de huidige (na latere wissels) opstelling — anders klopt het
+  // getoonde budget-11 niet meer met de tabel die voor die ronde wordt getoond.
+  run(sb, `
+    addTeam('BudgetRondeTest', 'Team BudgetRonde');
+    window.__brKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team BudgetRonde');
+    const clubBr = DATA.clubs[4];
+    const spelersBr = STATE.players.filter(p=>p.club===clubBr);
+    window.__brSpelerA = spelersBr[0].naam;
+    window.__brSpelerB = spelersBr[1].naam;
+    addBasisSpeler(window.__brKey, clubBr, window.__brSpelerA);
+    const teamBr = STATE.teams[window.__brKey];
+    teamBr.basis[0].prijs = 1000000;
+    addWissel(window.__brKey, clubBr, window.__brSpelerB, 3, window.__brSpelerA, 'regulier');
+    teamBr.wissels[0].prijs = 2000000;
+    window.__brRonde2 = computeBudget(teamBr, 2);
+    window.__brRonde3 = computeBudget(teamBr, 3);
+    window.__brHuidig = computeBudget(teamBr);
+  `);
+  console.log('131) computeBudget met een ronde-argument telt voor een oudere ronde de prijs van de toen actieve (basis)speler, niet die van de latere vervanger:', get(sb, "window.__brRonde2.basisGebruikt===1000000 && window.__brRonde2.wisselsGebruikt===0"));
+  console.log('132) ...en telt voor de ronde van de wissel (en later) juist de prijs van de nieuwe wissel-speler, niet meer die van de vervangen speler:', get(sb, "window.__brRonde3.basisGebruikt===0 && window.__brRonde3.wisselsGebruikt===2000000"));
+  console.log('133) Zonder ronde-argument blijft computeBudget over de NU actieve opstelling gaan (ongewijzigd gedrag voor de wissel-budgetcheck):', get(sb, "window.__brHuidig.basisGebruikt===0 && window.__brHuidig.wisselsGebruikt===2000000"));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
