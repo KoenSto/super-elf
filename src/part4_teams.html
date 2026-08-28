@@ -107,8 +107,13 @@ function computeFormatie(team){
 // vervangen speler telt niet meer mee voor het budget van zijn oude plek — dat budget komt weer vrij
 // zodra hij wordt uitgewisseld). Basis-oorsprong en wissel-oorsprong blijven twee gescheiden potjes,
 // want alleen de basis-11 heeft een harde budgetcap; wissels hebben een eigen (onbeperkt) budget.
-function computeBudget(team){
-  const actief = getActieveSpelers(team);
+// Zonder ronde-argument gaat dit over de NU actief opgestelde spelers (voor de budget-check bij het
+// doorvoeren van wissels/toevoegingen). Met een ronde-argument gaat het in plaats daarvan over wie er
+// in DIE speelronde daadwerkelijk stond opgesteld — nodig omdat de Basisopstelling-tabel bij het
+// terugbladeren naar een oudere ronde ook de toen geldende opstelling laat zien; de prijs-optelling
+// hierboven moet dan meebladeren in plaats van altijd de huidige (na latere wissels) opstelling te tellen.
+function computeBudget(team, ronde){
+  const actief = ronde===undefined ? getActieveSpelers(team) : getSpelersActiefInRonde(team, ronde);
   const basisGebruikt = actief.filter(p=>p._bron==='basis').reduce((s,p)=>s+(p.prijs||0),0);
   const wisselsGebruikt = actief.filter(p=>p._bron==='wissel').reduce((s,p)=>s+(p.prijs||0),0);
   return {
@@ -276,13 +281,46 @@ function addWissel(teamKey, club, naam, vanafRonde, uitNaam, type){
   });
   saveState(); buildTeamList(); renderTeamDetail();
 }
+// Zoekt het record van "naam" waarvan de actieve periode precies eindigde vlak vóór "opRonde" (dus
+// laatste_ronde === opRonde-1) en maakt dat record weer actief (laatste_ronde:null). Dit is precies het
+// record dat destijds werd afgesloten door de wissel die nu ongedaan gemaakt of verplaatst wordt — zo
+// komt de vervangen speler automatisch terug in zicht in plaats van spoorloos te verdwijnen.
+function herstelVervangenSpeler(team, naam, opRonde){
+  const alle = team.basis.map((b,i)=>({rec:b, bron:'basis', idx:i}))
+    .concat(team.wissels.map((w,i)=>({rec:w, bron:'wissel', idx:i})));
+  const target = alle.find(x=>x.rec.naam===naam && x.rec.laatste_ronde===opRonde-1);
+  if(target) target.rec.laatste_ronde = null;
+  return !!target;
+}
 function removeWissel(teamKey, idx){
   if(blokkeerAlsKijker()) return;
   const team = STATE.teams[teamKey];
   const w = team.wissels[idx];
   if(!w) return;
-  if(!confirm(`Wissel van ${w.vervangenSpeler ? w.vervangenSpeler.naam+' naar ' : ''}${w.naam} ongedaan maken? De speler die destijds werd vervangen wordt niet automatisch teruggezet in de basis.`)) return;
+  const herstelTekst = w.vervangenSpeler ? `${w.vervangenSpeler.naam} komt automatisch weer terug in de actieve opstelling.` : '';
+  if(!confirm(`Wissel van ${w.vervangenSpeler ? w.vervangenSpeler.naam+' naar ' : ''}${w.naam} ongedaan maken? ${herstelTekst}`)) return;
+  if(w.vervangenSpeler) herstelVervangenSpeler(team, w.vervangenSpeler.naam, w.vanaf_ronde);
   team.wissels.splice(idx,1);
+  saveState(); buildTeamList(); renderTeamDetail();
+}
+// Wijzigt alleen de ronde waarop een al doorgevoerde wissel ingaat — handig bij een tik- of denkfout
+// (bijv. ronde 3 ingevuld terwijl het ronde 4 moest zijn), zonder de wissel te hoeven verwijderen en
+// opnieuw aan te maken. De vervangen speler blijft precies tot en met de nieuwe ronde-1 actief.
+function editWisselRonde(teamKey, idx, nieuweRondeRaw){
+  if(blokkeerAlsKijker()) return;
+  const team = STATE.teams[teamKey];
+  const w = team.wissels[idx];
+  if(!w) return;
+  const nieuweRonde = Math.max(1, Math.min(34, Number(nieuweRondeRaw) || w.vanaf_ronde));
+  if(nieuweRonde === w.vanaf_ronde) return;
+  const oudeRonde = w.vanaf_ronde;
+  w.vanaf_ronde = nieuweRonde;
+  if(w.vervangenSpeler){
+    const alle = team.basis.map((b,i)=>({rec:b, bron:'basis', idx:i}))
+      .concat(team.wissels.map((ww,i)=>({rec:ww, bron:'wissel', idx:i})));
+    const target = alle.find(x=>x.rec.naam===w.vervangenSpeler.naam && x.rec.laatste_ronde===oudeRonde-1);
+    if(target) target.rec.laatste_ronde = nieuweRonde-1;
+  }
   saveState(); buildTeamList(); renderTeamDetail();
 }
 function removeActieveSpeler(teamKey, bron, idx){
@@ -388,9 +426,9 @@ function renderTeamDetail(){
   if(!selectedTeamKey){ el.innerHTML=''; return; }
   const team = TEAM_LIST.find(t=>t.key===selectedTeamKey);
   if(!team){ el.innerHTML=''; return; }
-  const budget = computeBudget(team);
   const formatie = computeFormatie(team);
   const ronde = teamsRonde; // bekeken ronde (via dropdown), los van STATE.huidigeRonde
+  const budget = computeBudget(team, ronde); // prijs-optelling van de opstelling zoals die in "ronde" stond
   const live = liveTotaalRonde(team, ronde);
 
   const actieveSpelers = getActieveSpelers(team); // NU actief — voor wisselen/toevoegen (los van de bekeken ronde)
@@ -417,12 +455,19 @@ function renderTeamDetail(){
     // Verwijderen kan alleen voor een speler die NU nog echt actief is (een historische, al
     // afgesloten periode van een eerdere ronde is hier alleen ter info te zien, niet te bewerken).
     const magVerwijderen = canEdit() && isActieveSpeler(b);
+    // Ronde van een wissel achteraf aanpassen (bijv. per ongeluk ronde 3 i.p.v. 4 ingevuld) kan alleen
+    // voor een actieve wissel-speler — via zijn team.wissels-index, niet voor "vanaf start"-basisspelers.
+    const magRondeWijzigen = canEdit() && isActieveSpeler(b) && b._bron==='wissel';
+    const statusCel = magRondeWijzigen
+      ? `${statusTekst} <input type="number" min="1" max="34" value="${b.vanaf_ronde}" data-editwissel-ronde-input="${team.key}|||${b._idx}" style="width:40px;margin-left:4px;">
+         <span style="cursor:pointer;margin-left:2px;" title="ronde van deze wissel aanpassen" data-editwissel-ronde-save="${team.key}|||${b._idx}">✎</span>`
+      : statusTekst;
     return `<tr${foutRij ? ' class="row-error" title="Twee spelers van dezelfde club mogen niet samen in de basisopstelling staan."' : ''}>
       <td style="border-left:4px solid ${posLineColor(b.positie)};"><span class="badge ${b.positie}">${b.positie}</span></td>
       <td>${esc(b.naam)}</td>
       <td class="muted">${esc(b.club)}${foutRij ? ' <span class="flag flag-danger">dubbele club</span>' : ''}</td>
       <td class="muted">${fmtGeld(b.prijs)}</td>
-      <td class="muted small">${statusTekst}</td>
+      <td class="muted small">${statusCel}</td>
       <td class="pts ${lp>0?'pos':(lp<0?'neg':'')}">${lp===null?'<span class="muted">–</span>':lp}${geblokkeerd ? ' <span class="flag flag-danger" title="Door een echte transfer staat deze speler bij dezelfde club als een teamgenoot; zonder tijdige wissel telt hij vanaf deze ronde niet meer mee.">geblokkeerd (dubbele club)</span>' : ''}</td>
       <td>${magVerwijderen ? `<span class="close-btn" title="verwijder uit opstelling" data-remove-actief="${team.key}" data-remove-actief-bron="${b._bron}" data-remove-actief-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="7" class="muted">Nog geen basisspelers in ronde ${ronde}. Voeg ze hieronder toe.</td></tr>`;
@@ -536,6 +581,11 @@ document.addEventListener('click', (e)=>{
   }
   if(t.dataset.removeWissellog!==undefined){
     removeWisselLogEntry(Number(t.dataset.removeWissellog));
+  }
+  if(t.dataset.editwisselRondeSave!==undefined){
+    const [key, idxStr] = t.dataset.editwisselRondeSave.split('|||');
+    const input = document.querySelector(`[data-editwissel-ronde-input="${key}|||${idxStr}"]`);
+    editWisselRonde(key, Number(idxStr), input ? input.value : null);
   }
   if(t.dataset.removeTeam){
     removeTeam(t.dataset.removeTeam);
