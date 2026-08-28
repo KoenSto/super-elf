@@ -958,6 +958,33 @@ async function main(){
   console.log('132) ...en telt voor de ronde van de wissel (en later) juist de prijs van de nieuwe wissel-speler, niet meer die van de vervangen speler:', get(sb, "window.__brRonde3.basisGebruikt===0 && window.__brRonde3.wisselsGebruikt===2000000"));
   console.log('133) Zonder ronde-argument blijft computeBudget over de NU actieve opstelling gaan (ongewijzigd gedrag voor de wissel-budgetcheck):', get(sb, "window.__brHuidig.basisGebruikt===0 && window.__brHuidig.wisselsGebruikt===2000000"));
 
+  // De Wisselhistorie-tabel las voorheen uit het losse STATE.wisselLog. Dat liep uit de pas zodra een
+  // wissel buiten addWissel() om in team.wissels werd gezet (bijv. een handmatige datacorrectie), en
+  // bleef ook staan op de oude ronde nadat editWisselRonde() de ronde van een wissel al had aangepast.
+  // Door de tabel voortaan rechtstreeks uit team.wissels te laten lezen, kan dat niet meer gebeuren.
+  run(sb, `
+    addTeam('HistorieTest', 'Team Historie');
+    window.__whKey = Object.keys(STATE.teams).find(k=>STATE.teams[k].teamnaam==='Team Historie');
+    const clubWh = DATA.clubs[5];
+    const spelersWh = STATE.players.filter(p=>p.club===clubWh);
+    window.__whSpelerA = spelersWh[0].naam;
+    window.__whSpelerB = spelersWh[1].naam;
+    addBasisSpeler(window.__whKey, clubWh, window.__whSpelerA);
+    const teamWh = STATE.teams[window.__whKey];
+    // Wissel handmatig aan team.wissels toegevoegd, buiten addWissel() om (zoals bij een datacorrectie) —
+    // moet toch meteen in de Wisselhistorie-tabel verschijnen.
+    teamWh.basis[0].laatste_ronde = 4;
+    teamWh.wissels.push({volgnr:1, club:clubWh, naam:window.__whSpelerB, prijs:1, positie:spelersWh[1].positie, weken:{}, vanaf_ronde:5, laatste_ronde:null, handmatig:true, type:'regulier', vervangenSpeler:{naam:window.__whSpelerA, club:clubWh, positie:spelersWh[0].positie, prijs:1}});
+    selectedTeamKey = window.__whKey;
+    renderTeamDetail();
+    window.__whHtmlVoor = document.getElementById('teamDetail').innerHTML;
+    editWisselRonde(window.__whKey, 0, 6);
+    renderTeamDetail();
+    window.__whHtmlNa = document.getElementById('teamDetail').innerHTML;
+  `);
+  console.log('134) Een wissel die buiten addWissel() om is toegevoegd (bijv. een handmatige correctie) verschijnt toch meteen in de Wisselhistorie-tabel:', get(sb, "window.__whHtmlVoor.includes('>Ronde 5<') && window.__whHtmlVoor.includes(window.__whSpelerB) && window.__whHtmlVoor.includes(window.__whSpelerA)"));
+  console.log('135) Na editWisselRonde() toont de Wisselhistorie-tabel meteen de nieuwe ronde, niet meer de oude:', get(sb, "window.__whHtmlNa.includes('>Ronde 6<') && !window.__whHtmlNa.includes('>Ronde 5<')"));
+
   if(mislukteChecks>0){
     origConsoleLog(`\n${mislukteChecks}/${totaalChecks} CHECKS MISLUKT — build faalt bewust, zie hierboven welke check(s) false teruggaven.`);
     process.exitCode = 1;
