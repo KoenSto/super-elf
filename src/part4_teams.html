@@ -274,11 +274,8 @@ function addWissel(teamKey, club, naam, vanafRonde, uitNaam, type){
     vanaf_ronde: ronde, laatste_ronde: null, handmatig:true, type,
     vervangenSpeler: vervangenSpeler ? {naam:vervangenSpeler.naam, club:vervangenSpeler.club, positie:vervangenSpeler.positie, prijs:vervangenSpeler.prijs} : null
   });
-  STATE.wisselLog.push({
-    teamKey, ronde, tijdstip: new Date().toISOString(), type,
-    uit: vervangenSpeler ? {naam:vervangenSpeler.naam, club:vervangenSpeler.club} : null,
-    in: {naam:p.naam, club:p.club}
-  });
+  // De Wisselhistorie-tabel leest rechtstreeks uit team.wissels (zie renderTeamDetail) — er is dus geen
+  // apart logboek meer nodig dat we hier bij zouden moeten houden en dat later uit de pas kan gaan lopen.
   saveState(); buildTeamList(); renderTeamDetail();
 }
 // Zoekt het record van "naam" waarvan de actieve periode precies eindigde vlak vóór "opRonde" (dus
@@ -327,12 +324,6 @@ function removeActieveSpeler(teamKey, bron, idx){
   if(bron==='basis') removeBasisSpeler(teamKey, idx);
   else removeWissel(teamKey, idx);
 }
-function removeWisselLogEntry(idx){
-  if(blokkeerAlsKijker()) return;
-  STATE.wisselLog.splice(idx,1);
-  saveState(); renderTeamDetail();
-}
-
 /* pending (niet-opgeslagen) keuzes in de "toevoegen"-formuliertjes per team */
 const pendingBasisClub = {}, pendingBasisSpeler = {}, pendingBasisRonde = {};
 const pendingWisselClub = {}, pendingWisselSpeler = {}, pendingWisselRonde = {}, pendingWisselUit = {}, pendingWisselType = {};
@@ -472,13 +463,21 @@ function renderTeamDetail(){
       <td>${magVerwijderen ? `<span class="close-btn" title="verwijder uit opstelling" data-remove-actief="${team.key}" data-remove-actief-bron="${b._bron}" data-remove-actief-idx="${b._idx}">✕</span>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="7" class="muted">Nog geen basisspelers in ronde ${ronde}. Voeg ze hieronder toe.</td></tr>`;
 
-  const wisselLogRows = STATE.wisselLog.map((l,i)=>({l,i})).filter(x=>x.l.teamKey===team.key).sort((a,b)=>(b.l.ronde-a.l.ronde)).map(({l,i})=>{
-    const typeInfo = l.type ? WISSEL_TYPES[l.type] : WISSEL_TYPES.regulier;
-    return `<tr><td>Ronde ${l.ronde}</td><td>${l.uit ? esc(l.uit.naam)+' <span class="muted small">('+esc(l.uit.club)+')</span>' : '<span class="muted">–</span>'}</td>
-      <td>&rarr;</td><td>${esc(l.in.naam)} <span class="muted small">(${esc(l.in.club)})</span></td>
+  // Deze tabel las voorheen uit het losse STATE.wisselLog, dat niet meebewoog met latere fixes/edits aan
+  // team.wissels (removeWissel/editWisselRonde) — waardoor de historie hier uit de pas kon lopen met de
+  // echte data (of, bij een wissel die buiten deze knoppen om werd toegevoegd, zelfs helemaal ontbrak).
+  // Door hier rechtstreeks uit team.wissels te lezen kan dat niet meer gebeuren: wat hier staat is per
+  // definitie gelijk aan de daadwerkelijke wisseldata.
+  const wisselHistorieRows = team.wissels.map((w,idx)=>({w,idx})).sort((a,b)=>(b.w.vanaf_ronde-a.w.vanaf_ronde)).map(({w,idx})=>{
+    const typeInfo = w.type ? WISSEL_TYPES[w.type] : WISSEL_TYPES.regulier;
+    // Ongedaan maken kan alleen voor een wissel die nu nog echt actief is: een al eerder weer vervangen
+    // (historische) wisselregel zou anders een record uit een andere wissel-keten kunnen herstellen.
+    const magOngedaanMaken = canEdit() && isActieveSpeler(w);
+    return `<tr><td>Ronde ${w.vanaf_ronde}</td><td>${w.vervangenSpeler ? esc(w.vervangenSpeler.naam)+' <span class="muted small">('+esc(w.vervangenSpeler.club)+')</span>' : '<span class="muted">–</span>'}</td>
+      <td>&rarr;</td><td>${esc(w.naam)} <span class="muted small">(${esc(w.club)})</span></td>
       <td><span class="${typeInfo.badge||'pill'}" style="font-size:10px;">${typeInfo.telt_mee?'regulier':'vrij (transfer)'}</span></td>
-      <td>${canEdit() ? `<span class="close-btn" title="verwijder logregel" data-remove-wissellog="${i}">✕</span>` : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="6" class="muted">Nog geen wissels gelogd voor dit team.</td></tr>';
+      <td>${magOngedaanMaken ? `<span class="close-btn" title="wissel ongedaan maken" data-remove-wissel-historie="${team.key}|||${idx}">✕</span>` : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="muted">Nog geen wissels doorgevoerd voor dit team.</td></tr>';
 
   const pbClub = pendingBasisClub[team.key] || DATA.clubs[0];
   const pbSpeler = pendingBasisSpeler[team.key] || (playersOfClub(pbClub)[0] && playersOfClub(pbClub)[0].naam) || '';
@@ -536,7 +535,7 @@ function renderTeamDetail(){
     </div>` : ''}
 
     <h3 style="margin-top:18px;">Wisselhistorie</h3>
-    <table><thead><tr><th>Ronde</th><th>Eruit</th><th></th><th>Erin</th><th>Type</th><th></th></tr></thead><tbody>${wisselLogRows}</tbody></table>
+    <table><thead><tr><th>Ronde</th><th>Eruit</th><th></th><th>Erin</th><th>Type</th><th></th></tr></thead><tbody>${wisselHistorieRows}</tbody></table>
 
     <h3 style="margin-top:18px;">Seizoensverloop (per ronde)</h3>
     ${sparkline(berekenSeizoensverloop(team))}
@@ -579,8 +578,9 @@ document.addEventListener('click', (e)=>{
     const type = pendingWisselType[key] || 'regulier';
     addWissel(key, club, naam, ronde, uitNaam, type);
   }
-  if(t.dataset.removeWissellog!==undefined){
-    removeWisselLogEntry(Number(t.dataset.removeWissellog));
+  if(t.dataset.removeWisselHistorie!==undefined){
+    const [key, idxStr] = t.dataset.removeWisselHistorie.split('|||');
+    removeWissel(key, Number(idxStr));
   }
   if(t.dataset.editwisselRondeSave!==undefined){
     const [key, idxStr] = t.dataset.editwisselRondeSave.split('|||');
